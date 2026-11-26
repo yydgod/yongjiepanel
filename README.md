@@ -1,0 +1,314 @@
+# 永杰面板 · 原子化服务器管理看板
+
+把服务器上的每个容器、systemd 服务、端口服务变成一张**独立卡片**，采用类 App 图标网格布局。
+每张卡片自带**专属 agent**，可读指标、看日志、执行受控运维操作；AI 能力统一由 **OpenClaw 网关**调度，
+并支持 DeepSeek / 腾讯混元 (HY) / Qwen 等多家大模型自由切换。卡片本身也能用一句话生成。
+
+![看板首页](docs/screenshots/01-board.png)
+
+## 核心特性
+
+| 能力 | 说明 |
+| --- | --- |
+| 服务器总览 | 首页实时呈现 CPU（含每核）、内存、磁盘分区与 IO、网络吞吐、TOP 进程与系统信息 |
+| 原子化卡片 | 容器 / systemd / 端口 / 自定义四类卡片，注册表驱动，新增类型不改核心代码 |
+| 独立详情页 | 点击卡片进入 `/cards/:id`，概览 / 对话 / 配置标签与 URL 同步，可分享与刷新直达 |
+| 专属 agent | 每卡独立配置供应商、模型、提示词、工具白名单、温度与推理通道 |
+| 多模型接入 | DeepSeek、混元、Qwen、任意 OpenAI 兼容端点；Key 加密存储，仅回显掩码 |
+| OpenClaw 网关 | 统一 AI 出口，健康探测 30s 缓存，异常自动降级直连并在 UI 标注通道 |
+| 工具编排 | `get_status` / `tail_logs` 等只读工具即时执行；重启/停止需一次性确认令牌 + 审计 |
+| AI 生成卡片 | 自然语言 → 结构化卡片草稿 → 预览编辑 → 一键加入看板 |
+| 优雅降级 | 单个服务读取失败只降级为「不可用」卡片并给出原因，接口永不 500 |
+| 明暗双模式 | 白天 / 夜间一键切换，玻璃拟态卡片、极光渐变、状态呼吸灯在两种模式下都保持可读性 |
+| 多套主题色 | 6 套强调色 × 明暗双模式，联动按钮渐变、环境光晕、图表曲线与 Element Plus 主色，本机记忆 |
+| 大字号可读性 | 全站字号按 1.2 倍放大（正文 15.6px、卡片标题 16.8px），适合值班远距离阅读与投屏 |
+
+<table>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/14-overview.png" alt="服务器总览" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/02-card-detail.png" alt="卡片详情" /></td>
+    <td><img src="docs/screenshots/03-agent-chat.png" alt="Agent 对话" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/04-providers.png" alt="模型与通道" /></td>
+    <td><img src="docs/screenshots/05-system.png" alt="系统与审计" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/09-theme-violet.png" alt="星云紫主题" /></td>
+    <td><img src="docs/screenshots/10-theme-amber.png" alt="琥珀金主题" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/11-mode-light.png" alt="白天模式看板" /></td>
+    <td><img src="docs/screenshots/12-mode-light-detail.png" alt="白天模式卡片详情" /></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/15-overview-light.png" alt="白天模式服务器总览" /></td>
+  </tr>
+</table>
+
+## 技术栈
+
+- **前端**：Vue 3.5 + TypeScript + Vite 5 + Element Plus + Pinia + Vue Router + ECharts + SortableJS + TailwindCSS
+- **后端**：Python 3.11+ + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic
+- **存储**：SQLite（WAL），改 `DATABASE_URL` 即可切 PostgreSQL
+- **采集**：docker SDK、`systemctl show`（argv 调用）、psutil
+- **AI**：httpx 异步客户端 + 自建 AI Gateway（OpenClaw / OpenAI 兼容 / 离线演示三通道）
+
+## 快速开始
+
+前置：Python ≥ 3.11、Node ≥ 20、可访问的 Docker socket（可选）。
+
+```bash
+cp .env.example .env          # 按需填写 SECRET_KEY / OpenClaw / 模型 Key
+make install                  # 创建 .venv 并安装前后端依赖
+make dev                      # 并行启动 API(8000) 与前端(5173)
+```
+
+页面路由：
+
+| 路径 | 页面 |
+| --- | --- |
+| `/` | 服务器总览（CPU / 内存 / 磁盘 / 网络 / 进程） |
+| `/board` | 应用面板（卡片网格） |
+| `/cards/:id` | 卡片详情，`?tab=chat` / `?tab=config` 可直接定位标签页 |
+| `/providers` | 模型与通道 |
+| `/system` | 系统与审计 |
+
+打开 <http://127.0.0.1:5173> 即是**服务器总览**首页（`/`），应用卡片看板在 `/board`。
+首次启动会自动从本机 Docker 与 systemd 发现服务并写入种子卡片；
+若两者都不可用，也会创建端口卡片与自定义卡片，保证看板可用。
+
+也可以分别启动：
+
+```bash
+make api    # http://127.0.0.1:8000/docs  (Swagger)
+make web    # http://127.0.0.1:5173
+```
+
+### Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+# 前端 http://127.0.0.1:5173 ，API http://127.0.0.1:8000
+```
+
+> 容器内没有 systemd，Compose 中已将 `SYSTEMD_ENABLED=false`。若要监控宿主 systemd unit，
+> 请用宿主机方式运行后端（`make api`），或在后续版本接入多主机 agent。
+
+## 部署
+
+生产部署请阅读 **[部署指南 docs/deployment.md](docs/deployment.md)**，包含宿主机 systemd + nginx、Docker Compose、
+HTTPS、配置项、备份恢复、升级与排障。`deploy/` 目录提供可直接使用的示例：
+
+| 文件 | 用途 |
+| --- | --- |
+| [`deploy/install.sh`](deploy/install.sh) | 项目目录内一键安装（venv + 后端依赖 + 前端构建 + 生成 `.env` + 初始化数据库） |
+| [`deploy/yongjie-panel.service`](deploy/yongjie-panel.service) | systemd 单元（单 worker、只读系统目录、可选 docker 组） |
+| [`deploy/nginx.conf`](deploy/nginx.conf) | nginx 站点（HTTPS、SPA 回退、`/api/` 反代、SSE 关闭缓冲） |
+| [`deploy/backup.sh`](deploy/backup.sh) | SQLite 在线备份（默认保留 14 天，可加 cron） |
+
+```bash
+bash deploy/install.sh /opt/yongjie-panel
+sudo cp deploy/yongjie-panel.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now yongjie-panel
+```
+
+## 目录结构
+
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── main.py                 # 应用装配、CORS、可选 Bearer 中间件
+│   │   ├── core/                   # 配置 / 结构化日志 / Fernet / 错误模型
+│   │   ├── db/                     # engine、Session、建表与种子入口
+│   │   ├── models/                 # 8 张表：hosts/cards/agents/providers/chat/audit...
+│   │   ├── schemas/                # API 契约（Pydantic v2）
+│   │   ├── api/routes/             # cards / card-types / providers / chat / generate / host / system
+│   │   ├── services/               # 领域逻辑（卡片、agent、供应商、对话、生成、审计、状态）+ host_monitor（主机指标）
+│   │   ├── collectors/             # 采集契约 + Docker/systemd/端口/自定义 + 5s 调度
+│   │   ├── ai/                     # AI Gateway、OpenClaw 客户端、OpenAI 兼容、离线 mock
+│   │   └── tools/                  # 工具注册表（只读 / 破坏性）与白名单执行器
+│   ├── alembic/                    # 初始迁移（自动生成）
+│   └── tests/                      # 24 个服务层 + API 集成测试
+├── frontend/
+│   └── src/
+│       ├── views/                  # OverviewView / BoardView / CardDetailView / ProvidersView / SystemView
+│       ├── components/             # overview / board / card / agent / providers / ai
+│       ├── stores/                 # Pinia：看板状态（5s 轮询）与外观偏好（明暗 + 主题色）
+│       ├── api/                    # fetch 封装、SSE 解析、类型化接口
+│       └── utils/                  # 状态色、图标映射、格式化
+├── deploy/                         # 部署示例：install / systemd / nginx / backup
+├── docs/
+│   ├── architecture.md             # 架构、数据模型、时序、扩展点
+│   └── deployment.md               # 生产部署指南
+├── docker-compose.yml
+└── Makefile
+```
+
+## 外观：白天 / 夜间模式 + 主题色
+
+导航栏右上角有两组入口：月亮 / 太阳按钮一键切换明暗，调色板按钮打开完整外观面板（模式 + 6 套强调色）。
+偏好即时生效并分别记忆在 `localStorage.yongjie.mode` 与 `localStorage.yongjie.accent`，刷新不丢失
+（首次访问会自动迁移旧的 `obsidian.*` 键值，无需重新设置）。
+
+![外观面板](docs/screenshots/08-theme-panel.png)
+
+| 模式 | 令牌表现 | 适用场景 |
+| --- | --- | --- |
+| `dark`（夜间，默认） | 近黑蓝底 + 白色半透明描边，强调色取亮色系 | 值班室、弱光环境 |
+| `light`（白天） | 白/浅蓝底 + 墨蓝半透明描边，强调色自动加深保证对比 | 白天办公、投屏演示 |
+
+6 套强调色（每套都有明暗两组色值，白天模式自动使用更深的一档）：
+
+| id | 名称 | 夜间主色 | 白天主色 |
+| --- | --- | --- | --- |
+| `teal` | 青绿极光 | `#35E0C8` | `#0B7F73` |
+| `violet` | 星云紫 | `#A78BFA` | `#6D4AE0` |
+| `blue` | 深海蓝 | `#60A5FA` | `#1D4ED8` |
+| `emerald` | 翡翠绿 | `#34D399` | `#047857` |
+| `amber` | 琥珀金 | `#FBBF24` | `#B45309` |
+| `rose` | 霓虹玫瑰 | `#FB7185` | `#BE123C` |
+
+实现要点：
+
+- **双轴主题**：`<html data-mode="dark|light" data-accent="teal|...">`，两组属性分别控制明暗与强调色，互不干扰。
+- **表面令牌**：`--ink-950/900/800/700/600`（背景）、`--mist-100/300/500`（文字）、`--tint`（所有 `white/xx` 半透明描边与遮罩基色）
+  在浅色模式下整体反色。Tailwind 中 `white` 被重映射为 `rgb(var(--tint) / <alpha-value>)`，
+  因此 74 处 `bg-white/[0.03]`、`border-white/[0.06]` 之类的类名无需修改即可适配。
+- **强调色对比度**：白天模式的强调色整体加深（如青绿 `#35E0C8 → #0B7F73`），保证白底文字 ≥ 4.5:1；
+  强调色渐变上的文字由 `--on-accent` 控制（夜间深字、白天白字）。
+- **Element Plus**：夜间挂 `html.dark` 使用官方 dark css-vars，白天移除该类回到亮色变量；再叠加我们自己的 `--el-bg-color / border / text`
+  覆盖与 primary 的 light-3/5/7/8/9 派生，抽屉、弹窗、表格、下拉、开关全部一致。
+- **图表**：ECharts 的曲线、坐标轴、网格线、tooltip 都按 `isLight` 切换色板，切换后立即重绘。
+- **卡片强调色**（青绿 / 星紫 / 电蓝 / 琥珀 / 玫瑰）使用独立的 `hue-*` 静态色板与 `text-icon-ink` 固定深色图标，
+  不随全局明暗与主题色翻转，保证多卡片可区分。
+- **状态色**（成功 / 告警 / 失败）保持语义固定，白天模式使用加深版本以维持对比度。
+- **防闪烁**：`index.html` 内联脚本在首屏渲染前读取偏好并写入 `data-mode` / `data-accent` / `.dark`，避免白屏闪一下再变色。
+
+新增一套主题只需两步：
+
+1. 在 `src/stores/theme.ts` 的 `ACCENT_THEMES` 增加一条（`dark` 与 `light` 各三段 hex）。
+2. 在 `src/style.css` 增加 `:root[data-accent='你的id']` 与 `:root[data-mode='light'][data-accent='你的id']` 两个变量块。
+
+### 字号基准
+
+全站字号以 1.2 倍为基准：`body` 15.6px（原 13px）、卡片标题 16.8px、次要信息 12–13.8px、统计数字 21.6–36px。
+Element Plus 的 `--el-font-size-base/small/large/extra-large` 同步设为 16.8 / 14.4 / 19.2 / 21.6px，
+ECharts 的坐标轴（11px）、图例（12px）与 tooltip（13px）一并放大。
+
+继续调整字号时：
+
+- 组件内的字号集中在 `text-[Npx]` 任意值类，统一搜索替换即可保持层级比例；
+- 全局基准与 Element Plus 字号在 `src/style.css` 的 `:root` 中维护；
+- 中文文本不要使用 `font-mono`（JetBrains Mono 缺少 CJK 字形，会显示成方块），技术标识符才使用等宽字体。
+
+## 配置项
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `DATABASE_URL` | `sqlite:///./data/board.db` | 数据库连接串 |
+| `SECRET_KEY` | dev 占位值 | 派生 Fernet 密钥，**生产必须替换** |
+| `ADMIN_TOKEN` | 空 | 设置后所有非 GET 请求需 `Authorization: Bearer <token>` |
+| `COLLECT_INTERVAL` | 5 | 服务卡片采集周期（秒） |
+| `HOST_INTERVAL` | 3 | 主机指标采样周期（秒） |
+| `HOST_HISTORY_POINTS` | 120 | 主机趋势环形缓冲点数（约 6 分钟） |
+| `DOCKER_ENABLED` / `SYSTEMD_ENABLED` / `PORT_ENABLED` | true | 按需关闭采集器 |
+| `OPENCLAW_BASE_URL` | 空 | 网关地址，如 `http://127.0.0.1:18789` |
+| `OPENCLAW_TOKEN` | 空 | 网关鉴权 token |
+| `OPENCLAW_MODE` | openai | `openai`（兼容端点）或 `channel`（会话端点） |
+| `ALLOW_MOCK_AI` | true | 无可用 Key 时启用离线演示通道 |
+| `CHAT_MAX_TOOL_ROUNDS` | 4 | 单轮对话最多工具迭代次数 |
+| `CONFIRM_TOKEN_TTL` | 300 | 破坏性操作确认令牌有效期（秒） |
+| `DEEPSEEK_API_KEY` / `HUNYUAN_API_KEY` / `QWEN_API_KEY` | 空 | 也可在界面中配置（界面优先） |
+
+## 主要接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/cards` | 卡片列表（配置 + 最新快照 + 分组统计） |
+| POST | `/api/cards` | 创建卡片（可内联 agent 配置） |
+| PATCH/DELETE | `/api/cards/{id}` | 更新 / 删除卡片 |
+| POST | `/api/cards/reorder` | 拖拽排序持久化 |
+| POST | `/api/cards/{id}/actions` | 快捷启停 / 重启（写审计） |
+| GET | `/api/cards/{id}/metrics` | 指标环形缓冲（约 15 分钟） |
+| GET | `/api/cards/{id}/logs` | 容器 / journal 尾部日志 |
+| GET/PUT | `/api/cards/{id}/agent` | 读取 / 更新专属 agent |
+| POST | `/api/cards/{id}/chat/stream` | SSE 流式对话（token / tool_call / pending / done） |
+| POST | `/api/chat/confirm` | 执行待确认的破坏性操作 |
+| GET/POST/PUT/DELETE | `/api/providers` | 供应商 CRUD（Key 掩码返回） |
+| POST | `/api/providers/{id}/test` | 供应商连通性测试 |
+| GET | `/api/providers/openclaw` | 网关健康与降级原因 |
+| POST | `/api/generate/card` | 自然语言生成卡片草稿 |
+| POST | `/api/cards/{id}/customize` | 自然语言定制卡片外观 / 提示词 |
+| GET | `/api/host/overview` | 主机快照 + 近 6 分钟趋势（CPU/内存/网络/磁盘/进程） |
+| POST | `/api/host/sample` | 立即采样一次（首页刷新按钮） |
+| GET/POST | `/api/system/status`、`/api/system/collect` | 调度状态、手动采集 |
+| GET | `/api/audit` | 审计日志 |
+
+## OpenClaw 接入
+
+系统把 OpenClaw 当作**统一 AI 能力网关**：
+
+1. 配置 `OPENCLAW_BASE_URL`（与可选 `OPENCLAW_TOKEN`）。
+2. `OPENCLAW_MODE=openai`：网关需暴露 `GET /health` 或 `/v1/models` 用于健康探测，
+   并提供 `POST /v1/chat/completions`；看板会把 `X-OpenClaw-Session`、`X-OpenClaw-Agent` 元数据透传，
+   便于网关侧 skills 按会话编排。
+3. `OPENCLAW_MODE=channel`：网关暴露 `POST /channel/message`（`session` / `agent` / `text` / `tools`），
+   由网关自行托管会话状态。
+4. 探测失败（30s 缓存）时自动降级直连供应商，响应 `channel` 字段标记 `fallback` / `direct` / `mock`，
+   前端顶部胶囊与系统页会实时显示当前通道。
+
+## 扩展指南
+
+**新增一种被管理的服务类型**
+
+1. `backend/app/services/card_types.py` 注册一份 `CardTypeSpec`（表单字段、图标、指标、工具集）。
+2. `backend/app/collectors/` 实现 `BaseCollector`（`available()` + `collect()`），在 `registry.py` 注册。
+3. 前端无需改动：卡片表单与详情由 `/api/card-types` 动态渲染。
+
+**新增 agent 工具**
+
+1. 在 `backend/app/tools/` 定义 `ToolSpec`（名字、描述、JSON Schema、`risk`、适用卡片类型、执行器）。
+2. 只读工具自动执行；`risk="destructive"` 会自动走「确认令牌 + 审计」流程。
+3. 工具会自动出现在 `GET /api/card-types`，前端配置面板直接可勾选。
+
+**新增模型供应商**
+
+界面「模型与通道 → 新增供应商」即可；厂商默认参数集中在 `backend/app/ai/providers.py` 的 `PRESETS`，
+若新厂商协议有差异，只需在 `OpenAICompatClient` 外层加薄适配，无需改动业务层。
+
+## 安全基线
+
+- API Key 使用 Fernet（密钥派生自 `SECRET_KEY`）加密入库，接口只返回 `sk-****abcd`，无明文回显接口。
+- 破坏性操作 = 工具白名单 + 一次性确认令牌 + 审计记录（操作者、目标、参数、结果、时间）。
+- 命令执行全部使用 argv 白名单（`systemctl restart <unit>`、`journalctl -u <unit>`、docker SDK），不做 shell 拼接。
+- 默认仅监听 `127.0.0.1`；可选 `ADMIN_TOKEN` Bearer 保护；CORS 白名单化。
+- Docker socket 只读挂载，后端容器不启用特权模式。
+
+## 测试与验收
+
+```bash
+make test     # 24 passed 个测试：主机指标、卡片 CRUD、供应商掩码、对话 mock、生成草稿、确认令牌、采集器单测
+make lint     # ruff
+make build    # vue-tsc 类型检查 + vite 构建
+```
+
+已在本机完成端到端验证：首页主机指标（CPU/内存/磁盘/网络/进程）实时刷新、看板渲染 4 类卡片、卡片详情页（`/cards/:id`）指标曲线与日志、SSE 流式对话、
+供应商页、系统审计页、AI 生成卡片三步向导，以及白天/夜间 × 6 套主题色切换与刷新后偏好保持（截图见 `docs/screenshots/`）。
+
+## 常见问题
+
+| 现象 | 处理 |
+| --- | --- |
+| 卡片显示「不可用 · 无法连接 Docker」 | 确认 `/var/run/docker.sock` 已挂载、当前用户有权限；或 `DOCKER_ENABLED=false` |
+| systemd 卡片「当前环境未运行 systemd」 | 容器内通常没有 PID 1 的 systemd，请用宿主机运行后端 |
+| 对话返回「演示通道」 | 未配置任何 API Key，可在「模型与通道」中填写，或设置 `DEEPSEEK_API_KEY` 等环境变量 |
+| 端口采集缺少进程信息 | 需要 root 或 CAP_NET_ADMIN 才能读取其他用户进程的连接 |
+| 修改卡片后状态未刷新 | 采集周期默认 5s；可在系统页点「立即采集」 |
+| 首页主机指标为 0 或不可用 | 容器内 psutil 只能看到 cgroup/宿主可见指标；确认容器未被限制读取 /proc |
+| 更换 SECRET_KEY 后供应商显示未配置 Key | 密钥由 SECRET_KEY 派生，轮换后需在界面重新填写 API Key |
+| 系统 Python 版本过低 | `make install PYTHON=python3.12`，或先安装 ≥3.11 的解释器 |

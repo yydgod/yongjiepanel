@@ -1,0 +1,42 @@
+[Unit]
+Description=Yongjie Panel API (FastAPI)
+Documentation=https://github.com/your-org/yongjie-panel
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yongjie
+Group=yongjie
+WorkingDirectory=/opt/yongjie-panel/backend
+EnvironmentFile=/opt/yongjie-panel/.env
+Environment=PYTHONUNBUFFERED=1
+
+# 采集调度与主机指标保存在进程内，必须单 worker
+ExecStart=/opt/yongjie-panel/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+KillSignal=SIGINT
+
+# 允许读取 Docker socket（采集容器状态）；不需要容器采集时可删除本行
+# 并把 .env 中的 DOCKER_ENABLED 设为 false
+SupplementaryGroups=docker
+
+# 基础加固：系统目录只读、独立 tmp、禁止提权
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/yongjie-panel/backend/data
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=yongjie-panel
+
+[Install]
+WantedBy=multi-user.target

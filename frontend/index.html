@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>永杰面板 · 服务器管理看板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // 在首屏渲染前恢复外观偏好，避免明暗/主题色闪烁
+      ;(function () {
+        try {
+          var root = document.documentElement
+          var stored = localStorage.getItem('yongjie.mode') || localStorage.getItem('obsidian.mode')
+          var mode = stored === 'light' ? 'light' : 'dark'
+          var accent = localStorage.getItem('yongjie.accent') || localStorage.getItem('obsidian.accent') || 'teal'
+          root.dataset.mode = mode
+          root.dataset.accent = accent
+          root.classList.toggle('dark', mode === 'dark')
+        } catch (error) {
+          document.documentElement.dataset.mode = 'dark'
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

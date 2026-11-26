@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    container_name: yongjie-panel-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////data/board.db
+      # 容器内没有 systemd，默认关闭；如需监控宿主 unit，请用宿主机方式运行后端
+      SYSTEMD_ENABLED: "false"
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    volumes:
+      - board-data:/data
+      # 只读挂载 docker socket：采集容器状态，不授予特权
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: yongjie-panel-web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:5173:80"
+
+volumes:
+  board-data:
