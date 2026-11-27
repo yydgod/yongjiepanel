@@ -108,7 +108,8 @@ docker compose up -d --build
 ```
 
 > 容器内没有 systemd，Compose 中已将 `SYSTEMD_ENABLED=false`。若要监控宿主 systemd unit，
-> 请用宿主机方式运行后端（`make api`），或在后续版本接入多主机 agent。
+> 请用宿主机方式运行后端（`make api`）。Compose 不包含 dsh，请按 `deploy/dsh/` 在宿主机安装，
+> 并通过 `DSH_PUBLIC_URL` 指向 dsh 子域名。
 
 ## 部署
 

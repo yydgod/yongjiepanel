@@ -201,6 +201,9 @@ DSH_CARDS_STORE=/data/yongjie/dsh-home/storages/yongjie-cards.json
 
 ## 4. 方式 B：Docker Compose
 
+> Compose 只包含面板；dsh 需要 Node 24 与工作区目录，建议按 3.7 在宿主机安装，
+> 面板通过 `DSH_PUBLIC_URL` 指向独立的 dsh 子域名。
+
 ### 4.1 准备配置
 
 ```bash
