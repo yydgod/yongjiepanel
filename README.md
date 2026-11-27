@@ -117,7 +117,11 @@ HTTPS、配置项、备份恢复、升级与排障；dsh 的安装、补丁与�
 
 | 文件 | 用途 |
 | --- | --- |
-| [`deploy/install.sh`](deploy/install.sh) | 项目目录内一键安装（venv + 后端依赖 + 前端构建 + 生成 `.env` + 初始化数据库） |
+| [`deploy/install.sh`](deploy/install.sh) | 项目目录内一键安装（venv + 后端依赖 + 前端构建 + 复制 `.env` + 初始化数据库） |
+| [`deploy/dsh/install.sh`](deploy/dsh/install.sh) | 安装固定版本 dsh、应用补丁并完整构建 |
+| [`deploy/dsh/start.sh`](deploy/dsh/start.sh) | 启动 dsh 并写入动态 token |
+| [`deploy/dsh/yongjie-dsh.service`](deploy/dsh/yongjie-dsh.service) | dsh systemd 单元 |
+| [`deploy/nginx-dsh.conf`](deploy/nginx-dsh.conf) | dsh 独立子域名反代 |
 | [`deploy/yongjie-panel.service`](deploy/yongjie-panel.service) | systemd 单元（单 worker、只读系统目录、可选 docker 组） |
 | [`deploy/nginx.conf`](deploy/nginx.conf) | nginx 站点（HTTPS、SPA 回退、`/api/` 反代、关闭代理缓冲） |
 | [`deploy/backup.sh`](deploy/backup.sh) | SQLite 在线备份（默认保留 14 天，可加 cron） |
