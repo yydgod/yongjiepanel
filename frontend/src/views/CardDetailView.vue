@@ -9,7 +9,6 @@ import {
   Play,
   RefreshCw,
   RotateCw,
-  Settings2,
   Square,
   Trash2,
 } from 'lucide-vue-next'
@@ -17,19 +16,17 @@ import { cardsApi } from '../api/cards'
 import { ApiError, errorMessage } from '../api/client'
 import { relativeTime, statusVisual } from '../utils/format'
 import { cardIcon } from '../utils/icons'
-import type { Provider, ServiceCard } from '../types'
-import AgentChatPanel from '../components/agent/AgentChatPanel.vue'
-import AgentConfigPanel from '../components/agent/AgentConfigPanel.vue'
+import type { DshWorkspaceInfo, ServiceCard } from '../types'
 import CardOverviewTab from '../components/card/CardOverviewTab.vue'
 
-type TabName = 'overview' | 'chat' | 'config'
-const TABS: TabName[] = ['overview', 'chat', 'config']
+type TabName = 'overview' | 'chat'
+const TABS: TabName[] = ['overview', 'chat']
 
 const route = useRoute()
 const router = useRouter()
 
 const detail = ref<ServiceCard | null>(null)
-const providers = ref<Provider[]>([])
+const dsh = ref<DshWorkspaceInfo | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
 const busy = ref(false)
@@ -79,11 +76,11 @@ async function load(): Promise<void> {
   }
 }
 
-async function loadProviders(): Promise<void> {
+async function loadDsh(): Promise<void> {
   try {
-    providers.value = await cardsApi.providers()
+    dsh.value = await cardsApi.dsh(cardId.value)
   } catch (err) {
-    console.error('供应商加载失败', err)
+    console.error('dsh 工作区加载失败', err)
   }
 }
 
@@ -153,7 +150,7 @@ async function refresh(): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([load(), loadProviders()])
+  await Promise.all([load(), loadDsh()])
   startPolling()
 })
 
@@ -232,11 +229,7 @@ onBeforeUnmount(() => {
           </button>
           <button type="button" class="btn-ghost h-8" @click="tab = 'chat'">
             <MessageSquare class="h-3.5 w-3.5" />
-            与 agent 对话
-          </button>
-          <button type="button" class="btn-ghost h-8" @click="tab = 'config'">
-            <Settings2 class="h-3.5 w-3.5" />
-            Agent 配置
+            进入 dsh 工作区
           </button>
         </div>
       </header>
@@ -246,29 +239,27 @@ onBeforeUnmount(() => {
           <CardOverviewTab
             ref="overviewTab"
             :card="detail"
-            :providers="providers"
             @changed="load"
             @open-chat="tab = 'chat'"
-            @open-config="tab = 'config'"
           />
         </el-tab-pane>
 
-        <el-tab-pane label="Agent 对话" name="chat">
-          <div class="glass-panel h-[calc(100vh-330px)] min-h-[480px] p-4">
-            <AgentChatPanel :card="detail" :active="tab === 'chat'" />
+        <el-tab-pane label="dsh 工作区" name="chat">
+          <div class="glass-panel h-[calc(100vh-330px)] min-h-[520px] overflow-hidden p-1.5">
+            <iframe
+              v-if="dsh?.configured && dsh.url"
+              :src="dsh.url"
+              title="dsh 工作区"
+              class="h-full w-full rounded-lg border-0 bg-white"
+              allow="clipboard-read; clipboard-write"
+            />
+            <div v-else class="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+              <p class="text-[15.6px] text-mist-100">dsh 工作区尚未就绪</p>
+              <p class="text-[12.6px] text-mist-500">{{ dsh?.reason || '请先迁移该卡片为 dsh 工作区' }}</p>
+            </div>
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="Agent 配置" name="config">
-          <div class="glass-panel max-w-[960px] p-4">
-            <AgentConfigPanel
-              :card="detail"
-              :providers="providers"
-              :tools="detail.available_tools ?? []"
-              @saved="load"
-            />
-          </div>
-        </el-tab-pane>
       </el-tabs>
     </template>
 

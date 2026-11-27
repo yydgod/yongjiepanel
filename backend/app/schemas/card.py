@@ -1,4 +1,4 @@
-"""Card & agent request/response schemas."""
+"""Card request/response schemas."""
 
 from __future__ import annotations
 
@@ -6,25 +6,6 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-
-class AgentConfigIn(BaseModel):
-    name: str = Field(default="卡片助手", max_length=64)
-    provider_id: str | None = None
-    model: str = Field(default="", max_length=80)
-    system_prompt: str = ""
-    tools: list[str] = Field(default_factory=list)
-    temperature: float = Field(default=0.3, ge=0, le=2)
-    max_tokens: int = Field(default=1024, ge=64, le=8192)
-    gateway: Literal["auto", "openclaw", "direct"] = "auto"
-    enabled: bool = True
-
-
-class AgentOut(AgentConfigIn):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    card_id: str
 
 
 class CardBase(BaseModel):
@@ -42,7 +23,6 @@ class CardBase(BaseModel):
 class CardCreate(CardBase):
     host_id: str | None = None
     sort_order: int | None = None
-    agent: AgentConfigIn | None = None
 
 
 class CardUpdate(BaseModel):
@@ -56,7 +36,6 @@ class CardUpdate(BaseModel):
     display_config: dict[str, Any] | None = None
     enabled: bool | None = None
     sort_order: int | None = None
-    agent: AgentConfigIn | None = None
 
 
 class CardOut(CardBase):
@@ -65,7 +44,6 @@ class CardOut(CardBase):
     id: str
     host_id: str
     sort_order: int
-    agent: AgentOut | None = None
     status: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime

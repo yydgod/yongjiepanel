@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import __version__
-from app.api.routes import card_types, cards, chat, generate, host, providers, system
+from app.api.routes import card_types, cards, dsh, host, system
 from app.collectors.scheduler import scheduler
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
@@ -39,7 +39,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="永杰面板 API",
     version=__version__,
-    description="原子化卡片式服务器管理看板：卡片 agent、多模型接入、OpenClaw 网关",
+    description="永杰面板：服务器总览、应用卡片与 dsh 原生工作区",
     lifespan=lifespan,
 )
 
@@ -70,5 +70,5 @@ async def admin_guard(request: Request, call_next):  # type: ignore[no-untyped-d
     return await call_next(request)
 
 
-for module in (cards, card_types, chat, generate, host, providers, system):
+for module in (cards, card_types, dsh, host, system):
     app.include_router(module.router, prefix=settings.api_prefix)

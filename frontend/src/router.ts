@@ -16,16 +16,22 @@ const router = createRouter({
       meta: { title: '应用面板' },
     },
     {
+      path: '/cards/:id/workspace',
+      name: 'card-workspace',
+      component: () => import('./views/CardWorkspaceView.vue'),
+      meta: { title: '工作区' },
+    },
+    {
       path: '/cards/:id',
       name: 'card-detail',
       component: () => import('./views/CardDetailView.vue'),
       meta: { title: '卡片详情' },
     },
     {
-      path: '/providers',
-      name: 'providers',
-      component: () => import('./views/ProvidersView.vue'),
-      meta: { title: '模型与通道' },
+      path: '/dsh',
+      name: 'dsh',
+      component: () => import('./views/DshView.vue'),
+      meta: { title: 'dsh 工作区' },
     },
     {
       path: '/system',

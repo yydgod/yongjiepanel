@@ -1,7 +1,8 @@
-"""Tool package — importing it registers every tool."""
+"""Tool registry and card quick-action tools."""
 
-from app.tools import container_tools, diagnostic_tools, systemd_tools  # noqa: F401
-from app.tools.registry import ToolContext, ToolRegistry, ToolSpec
-from app.tools.registry import registry as tool_registry
+from app.tools import container_tools, systemd_tools  # noqa: F401
+from app.tools.registry import registry
 
-__all__ = ["ToolContext", "ToolRegistry", "ToolSpec", "tool_registry"]
+tool_registry = registry
+
+__all__ = ["registry", "tool_registry"]

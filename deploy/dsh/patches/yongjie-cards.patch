@@ -1,0 +1,588 @@
+diff --git a/packages/client/connection/src/browser-auth.ts b/packages/client/connection/src/browser-auth.ts
+index 5c8594df..6a9d3f2b 100644
+--- a/packages/client/connection/src/browser-auth.ts
++++ b/packages/client/connection/src/browser-auth.ts
+@@ -264,6 +264,9 @@ export class BrowserAuth {
+     /* v8 ignore next -- node:http always supplies url on server requests. */
+     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
+     const tokens = url.searchParams.getAll(TOKEN_QUERY)
++    const redirectQuery = new URLSearchParams(url.searchParams)
++    redirectQuery.delete(TOKEN_QUERY)
++    const redirectSuffix = redirectQuery.toString() ? `?${redirectQuery.toString()}` : ''
+     if (tokens.length > 0) {
+       const authority = requestAudience(req.headers, secure)
+       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
+@@ -278,7 +281,7 @@ export class BrowserAuth {
+         }, this.secret)
+         res.writeHead(303, {
+           'cache-control': 'no-store',
+-          'location': './',
++          'location': `./${redirectSuffix}`,
+           'referrer-policy': 'no-referrer',
+           'set-cookie': sessionCookie(
+             cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000), secure,
+@@ -290,7 +293,7 @@ export class BrowserAuth {
+       if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req, secure)) {
+         res.writeHead(303, {
+           'cache-control': 'no-store',
+-          'location': './',
++          'location': `./${redirectSuffix}`,
+           'referrer-policy': 'no-referrer',
+         })
+         res.end()
+diff --git a/packages/client/ui-brand-official/package.json b/packages/client/ui-brand-official/package.json
+index b5b5d59a..78dbdd51 100644
+--- a/packages/client/ui-brand-official/package.json
++++ b/packages/client/ui-brand-official/package.json
+@@ -32,7 +32,10 @@
+       "inject": [
+         "@deepseek-ai/dsh-client-ui-renderer",
+         "@deepseek-ai/dsh-client-ui-sidebar",
+-        "@deepseek-ai/dsh-client-ui-conversation"
++        "@deepseek-ai/dsh-client-ui-conversation",
++        "@deepseek-ai/dsh-api-workspace-controller",
++        "@deepseek-ai/dsh-client-ui-workspace",
++        "@deepseek-ai/dsh-client-ui-layout"
+       ],
+       "platform": "web"
+     }
+diff --git a/packages/client/ui-brand-official/src/client/CardsHome.tsx b/packages/client/ui-brand-official/src/client/CardsHome.tsx
+new file mode 100644
+index 00000000..c6a0173f
+--- /dev/null
++++ b/packages/client/ui-brand-official/src/client/CardsHome.tsx
+@@ -0,0 +1,176 @@
++/**
++ * 永杰面板首页：把已注册的 Workspace 渲染成卡片，点击直接进入 dsh 原生工作区。
++ *
++ * 该组件挂在 `conversation.hero.frame` HOC 槽上：仅在 home（hero=true）时接管
++ * 内容区域，选中工作区后交还给 dsh 原生界面。
++ */
++import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
++import { hasEnteredWorkspace, markEnteredWorkspace, subscribeEntered } from './cardsState.ts'
++
++type WorkspaceItem = {
++  workspaceId: string
++  title: string
++  path: string
++  sessionIds?: readonly string[]
++}
++
++type Snapshot = {
++  items: readonly WorkspaceItem[]
++  state: string
++}
++
++type Source = {
++  getSnapshot: () => Snapshot
++  subscribe: (listener: () => void) => () => void
++}
++
++const EMPTY: Snapshot = { items: [], state: 'idle' }
++
++let source: Source | null = null
++let openWorkspace: ((workspaceId: string) => Promise<void>) | null = null
++
++/** 由插件 apply() 注入 dsh 的工作区数据源与导航能力。 */
++export function configureCards(nextSource: Source | null, nextOpen: typeof openWorkspace): void {
++  source = nextSource
++  openWorkspace = nextOpen
++}
++
++function subscribe(listener: () => void): () => void {
++  return source?.subscribe(listener) ?? (() => {})
++}
++
++function getSnapshot(): Snapshot {
++  return source?.getSnapshot() ?? EMPTY
++}
++
++const palette = ['#35E0C8', '#7C6CFF', '#3B82F6', '#F5A524', '#FF5C7A', '#34D399']
++
++function colorFor(seed: string): string {
++  let hash = 0
++  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
++  return palette[hash % palette.length]!
++}
++
++async function enter(workspaceId: string): Promise<void> {
++  markEnteredWorkspace()
++  if (!openWorkspace) return
++  await openWorkspace(workspaceId)
++}
++
++export function CardsHome({ hero, children }: { hero?: boolean; children?: ReactNode }): ReactNode {
++  const snapshot = useSyncExternalStore(subscribe, getSnapshot)
++  const [entered, setEntered] = useState(hasEnteredWorkspace)
++  useEffect(() => subscribeEntered(() => setEntered(hasEnteredWorkspace())), [])
++  if (!hero || entered) return children
++
++  const items = snapshot.items.filter((item) => item.path !== '/root')
++
++  return (
++    <div
++      style={{
++        display: 'flex',
++        flexDirection: 'column',
++        alignItems: 'center',
++        justifyContent: 'center',
++        gap: 20,
++        minHeight: '100%',
++        padding: '40px 28px 72px',
++        color: 'inherit',
++      }}
++    >
++      <div style={{ textAlign: 'center' }}>
++        <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '0.02em' }}>工作区</div>
++        <div style={{ marginTop: 6, fontSize: 13, opacity: 0.62 }}>
++          每张卡片对应一个独立工作区，点击进入 dsh 原生界面
++        </div>
++      </div>
++
++      {snapshot.state === 'loading' && items.length === 0 ? (
++        <div style={{ fontSize: 13, opacity: 0.6 }}>正在加载工作区…</div>
++      ) : items.length === 0 ? (
++        <div style={{ fontSize: 13, opacity: 0.6 }}>还没有工作区，请先在 dsh 中创建或运行迁移脚本</div>
++      ) : (
++        <div
++          style={{
++            display: 'grid',
++            width: '100%',
++            maxWidth: 920,
++            gap: 14,
++            gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
++          }}
++        >
++          {items.map((item) => {
++            const accent = colorFor(item.workspaceId)
++            const initial = (item.title || 'W').trim().slice(0, 1).toUpperCase()
++            return (
++              <button
++                key={item.workspaceId}
++                type="button"
++                onClick={() => void enter(item.workspaceId)}
++                style={{
++                  display: 'flex',
++                  flexDirection: 'column',
++                  alignItems: 'flex-start',
++                  gap: 10,
++                  padding: '16px 16px 14px',
++                  borderRadius: 14,
++                  border: '1px solid rgba(127,127,127,0.22)',
++                  background: 'rgba(127,127,127,0.07)',
++                  color: 'inherit',
++                  textAlign: 'left',
++                  cursor: 'pointer',
++                  transition: 'background 0.18s ease, border-color 0.18s ease, transform 0.18s ease',
++                }}
++                onMouseEnter={(event) => {
++                  event.currentTarget.style.background = 'rgba(127,127,127,0.16)'
++                  event.currentTarget.style.borderColor = accent
++                  event.currentTarget.style.transform = 'translateY(-1px)'
++                }}
++                onMouseLeave={(event) => {
++                  event.currentTarget.style.background = 'rgba(127,127,127,0.07)'
++                  event.currentTarget.style.borderColor = 'rgba(127,127,127,0.22)'
++                  event.currentTarget.style.transform = 'translateY(0)'
++                }}
++              >
++                <span
++                  style={{
++                    display: 'inline-flex',
++                    alignItems: 'center',
++                    justifyContent: 'center',
++                    width: 34,
++                    height: 34,
++                    borderRadius: 10,
++                    background: `${accent}22`,
++                    color: accent,
++                    fontWeight: 700,
++                    fontSize: 16,
++                  }}
++                >
++                  {initial}
++                </span>
++                <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>{item.title}</span>
++                <span
++                  style={{
++                    maxWidth: '100%',
++                    overflow: 'hidden',
++                    textOverflow: 'ellipsis',
++                    whiteSpace: 'nowrap',
++                    fontSize: 11.5,
++                    opacity: 0.55,
++                    fontFamily: 'ui-monospace, monospace',
++                  }}
++                  title={item.path}
++                >
++                  {item.path}
++                </span>
++                <span style={{ fontSize: 11.5, opacity: 0.55 }}>
++                  {item.sessionIds?.length ?? 0} 个会话
++                </span>
++              </button>
++            )
++          })}
++        </div>
++      )}
++    </div>
++  )
++}
+diff --git a/packages/client/ui-brand-official/src/client/CardsOverlay.tsx b/packages/client/ui-brand-official/src/client/CardsOverlay.tsx
+new file mode 100644
+index 00000000..5d9cdaa0
+--- /dev/null
++++ b/packages/client/ui-brand-official/src/client/CardsOverlay.tsx
+@@ -0,0 +1,222 @@
++/**
++ * 常驻「工作区」入口：右下角浮动按钮 + 卡片弹层。
++ * 点击卡片直接调用 ctx.uiWorkspace.openWorkspace()，进入 dsh 原生工作区。
++ */
++import { useState, useSyncExternalStore, type ReactNode } from 'react'
++import { markEnteredWorkspace } from './cardsState.ts'
++
++type WorkspaceItem = {
++  workspaceId: string
++  title: string
++  path: string
++  sessionIds?: readonly string[]
++}
++
++type Snapshot = { items: readonly WorkspaceItem[]; state: string }
++type Source = {
++  getSnapshot: () => Snapshot
++  subscribe: (listener: () => void) => () => void
++}
++
++let source: Source | null = null
++let openWorkspace: ((workspaceId: string) => Promise<void>) | null = null
++
++export function configureOverlay(nextSource: Source | null, nextOpen: typeof openWorkspace): void {
++  source = nextSource
++  openWorkspace = nextOpen
++}
++
++const EMPTY: Snapshot = { items: [], state: 'idle' }
++const subscribe = (listener: () => void): (() => void) => source?.subscribe(listener) ?? (() => {})
++const getSnapshot = (): Snapshot => source?.getSnapshot() ?? EMPTY
++
++const palette = ['#35E0C8', '#7C6CFF', '#3B82F6', '#F5A524', '#FF5C7A', '#34D399']
++
++function colorFor(seed: string): string {
++  let hash = 0
++  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
++  return palette[hash % palette.length]!
++}
++
++export function CardsOverlay(): ReactNode {
++  const [open, setOpen] = useState(false)
++  const snapshot = useSyncExternalStore(subscribe, getSnapshot)
++  const items = snapshot.items.filter((item) => item.path !== '/root')
++
++  const enter = (workspaceId: string): void => {
++    setOpen(false)
++    markEnteredWorkspace()
++    void openWorkspace?.(workspaceId)
++  }
++
++  return (
++    <>
++      <button
++        type="button"
++        onClick={() => setOpen(true)}
++        title="工作区卡片"
++        style={{
++          position: 'fixed',
++          right: 22,
++          bottom: 22,
++          zIndex: 9000,
++          display: 'inline-flex',
++          alignItems: 'center',
++          gap: 8,
++          padding: '9px 14px',
++          borderRadius: 999,
++          border: '1px solid rgba(127,127,127,0.28)',
++          background: 'var(--dsw-alias-bg-elevated, rgba(127,127,127,0.12))',
++          color: 'inherit',
++          fontSize: 13,
++          cursor: 'pointer',
++          boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
++        }}
++      >
++        <span
++          style={{
++            display: 'grid',
++            gridTemplateColumns: '1fr 1fr',
++            gap: 2,
++            width: 12,
++            height: 12,
++          }}
++          aria-hidden="true"
++        >
++          {[0, 1, 2, 3].map((index) => (
++            <span key={index} style={{ background: 'currentColor', borderRadius: 2, opacity: 0.75 }} />
++          ))}
++        </span>
++        工作区
++      </button>
++
++      {open && (
++        <div
++          role="dialog"
++          aria-modal="true"
++          onClick={() => setOpen(false)}
++          style={{
++            position: 'fixed',
++            inset: 0,
++            zIndex: 9100,
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'center',
++            padding: 24,
++            background: 'rgba(0,0,0,0.38)',
++            backdropFilter: 'blur(4px)',
++          }}
++        >
++          <div
++            onClick={(event) => event.stopPropagation()}
++            style={{
++              width: 'min(860px, 100%)',
++              maxHeight: 'min(78vh, 720px)',
++              overflow: 'auto',
++              padding: 24,
++              borderRadius: 18,
++              border: '1px solid rgba(127,127,127,0.24)',
++              background: 'var(--dsw-alias-bg-base, #fff)',
++              color: 'var(--dsw-alias-label-primary, #111)',
++              boxShadow: '0 32px 80px rgba(0,0,0,0.28)',
++            }}
++          >
++            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
++              <div>
++                <div style={{ fontSize: 19, fontWeight: 600 }}>工作区</div>
++                <div style={{ marginTop: 4, fontSize: 12.5, opacity: 0.6 }}>
++                  选择卡片进入 dsh 原生工作区，模型与权限沿用 dsh 设置
++                </div>
++              </div>
++              <button
++                type="button"
++                onClick={() => setOpen(false)}
++                style={{
++                  marginLeft: 'auto',
++                  border: 'none',
++                  background: 'transparent',
++                  color: 'inherit',
++                  fontSize: 20,
++                  cursor: 'pointer',
++                  opacity: 0.5,
++                }}
++                aria-label="关闭"
++              >
++                ×
++              </button>
++            </div>
++
++            {items.length === 0 ? (
++              <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, opacity: 0.6 }}>
++                还没有工作区，请先创建或运行迁移脚本
++              </div>
++            ) : (
++              <div
++                style={{
++                  display: 'grid',
++                  gap: 12,
++                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
++                }}
++              >
++                {items.map((item) => {
++                  const accent = colorFor(item.workspaceId)
++                  return (
++                    <button
++                      key={item.workspaceId}
++                      type="button"
++                      onClick={() => enter(item.workspaceId)}
++                      style={{
++                        display: 'flex',
++                        flexDirection: 'column',
++                        alignItems: 'flex-start',
++                        gap: 9,
++                        padding: '14px 14px 12px',
++                        borderRadius: 12,
++                        border: '1px solid rgba(127,127,127,0.2)',
++                        background: 'rgba(127,127,127,0.06)',
++                        color: 'inherit',
++                        textAlign: 'left',
++                        cursor: 'pointer',
++                      }}
++                    >
++                      <span
++                        style={{
++                          display: 'inline-flex',
++                          alignItems: 'center',
++                          justifyContent: 'center',
++                          width: 30,
++                          height: 30,
++                          borderRadius: 9,
++                          background: `${accent}22`,
++                          color: accent,
++                          fontWeight: 700,
++                        }}
++                      >
++                        {(item.title || 'W').trim().slice(0, 1).toUpperCase()}
++                      </span>
++                      <span style={{ fontSize: 14.5, fontWeight: 600 }}>{item.title}</span>
++                      <span
++                        style={{
++                          maxWidth: '100%',
++                          overflow: 'hidden',
++                          textOverflow: 'ellipsis',
++                          whiteSpace: 'nowrap',
++                          fontSize: 11,
++                          opacity: 0.55,
++                          fontFamily: 'ui-monospace, monospace',
++                        }}
++                        title={item.path}
++                      >
++                        {item.path}
++                      </span>
++                    </button>
++                  )
++                })}
++              </div>
++            )}
++          </div>
++        </div>
++      )}
++    </>
++  )
++}
+diff --git a/packages/client/ui-brand-official/src/client/cardsState.ts b/packages/client/ui-brand-official/src/client/cardsState.ts
+new file mode 100644
+index 00000000..72bec3a2
+--- /dev/null
++++ b/packages/client/ui-brand-official/src/client/cardsState.ts
+@@ -0,0 +1,25 @@
++/** 卡片首页是否已被一次「进入工作区」接管；刷新后保持，避免卡片网格盖住会话。 */
++const KEY = 'yongjie.cards.entered'
++const EVENT = 'yongjie-cards-entered'
++
++export function hasEnteredWorkspace(): boolean {
++  try {
++    return sessionStorage.getItem(KEY) === '1'
++  } catch {
++    return false
++  }
++}
++
++export function markEnteredWorkspace(): void {
++  try {
++    sessionStorage.setItem(KEY, '1')
++  } catch {
++    // private mode：忽略持久化失败，仅通知当前页面
++  }
++  window.dispatchEvent(new Event(EVENT))
++}
++
++export function subscribeEntered(listener: () => void): () => void {
++  window.addEventListener(EVENT, listener)
++  return () => window.removeEventListener(EVENT, listener)
++}
+diff --git a/packages/client/ui-brand-official/src/client/index.ts b/packages/client/ui-brand-official/src/client/index.ts
+index e5dc78b0..fc13f594 100644
+--- a/packages/client/ui-brand-official/src/client/index.ts
++++ b/packages/client/ui-brand-official/src/client/index.ts
+@@ -5,15 +5,93 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import { PixelWhale } from './home-whale/PixelWhale.tsx'
+ import { OfficialBrandMark, OfficialBrandName } from './Brand.tsx'
++import { CardsHome, configureCards } from './CardsHome.tsx'
++import { CardsOverlay, configureOverlay } from './CardsOverlay.tsx'
++import { markEnteredWorkspace } from './cardsState.ts'
+ 
+ /** Required service: the UI slot registry. */
+-export const inject = ['slots']
++export const inject = ['slots', 'workspaces', 'uiWorkspace']
++
++/** 支持 /?workspace=<id> 深链：看板卡片可直接进入指定工作区的原生界面。 */
++function enterWorkspaceFromQuery(services: {
++  workspaces?: { list?: { getSnapshot?: () => { items?: readonly { workspaceId: string }[] } } }
++  uiWorkspace?: { startSession?: (workspaceId?: string) => void }
++}): void {
++  if (typeof window === 'undefined') return
++  const workspaceId = new URL(window.location.href).searchParams.get('workspace')
++  if (!workspaceId) return
++  markEnteredWorkspace()
++  const open = (): void => {
++    const items = services.workspaces?.list?.getSnapshot?.()?.items ?? []
++    if (items.some((item) => item.workspaceId === workspaceId)) {
++      services.uiWorkspace?.startSession?.(workspaceId)
++    }
++  }
++  // 会话恢复可能晚于首帧，多次覆盖，确保 URL 指定的工作区最终生效
++  for (const delay of [0, 400, 1200, 2400, 3600]) window.setTimeout(open, delay)
++}
++
++/** 加载中文字体并覆盖 dsh 默认字体栈，避免中文标题显示为方块。 */
++function installChineseFont(): void {
++  if (typeof document === 'undefined' || document.getElementById('yongjie-cjk-font')) return
++  const link = document.createElement('link')
++  link.rel = 'stylesheet'
++  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap'
++  document.head.appendChild(link)
++  const style = document.createElement('style')
++  style.id = 'yongjie-cjk-font'
++  style.textContent =
++    ':root{--dsw-font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif !important;}'
++    + 'body{font-family:var(--dsw-font-family) !important;}'
++  document.head.appendChild(style)
++
++  const stack = '"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif'
++  const applyFont = (): void => {
++    document.body.style.setProperty('font-family', stack, 'important')
++    document.documentElement.style.setProperty('--dsw-font-family', stack, 'important')
++  }
++  applyFont()
++  window.setTimeout(applyFont, 800)
++  window.setTimeout(applyFont, 2500)
++  void document.fonts?.load('14px "Noto Sans SC"').then(applyFont).catch(() => {})
++}
+ 
+ /**
+  * Fill official sidebar artwork and frame the blank home with the whale decoration.
+  * @param ctx - Client root context.
+  */
+ export function apply(ctx: ClientContext): void {
++  const services = ctx as unknown as {
++    workspaces?: { list?: unknown }
++    uiWorkspace?: {
++      openWorkspace?: (workspaceId: string) => Promise<void>
++      startSession?: (workspaceId?: string) => void
++    }
++  }
++  const source = (services.workspaces?.list ?? null) as Parameters<typeof configureCards>[0]
++  const ui = services.uiWorkspace
++  const open = ui?.startSession
++    ? (workspaceId: string) => {
++        ui.startSession!(workspaceId)
++        return Promise.resolve()
++      }
++    : ui?.openWorkspace
++      ? (workspaceId: string) => ui.openWorkspace!(workspaceId)
++      : null
++  configureCards(source, open)
++  configureOverlay(source, open)
++  enterWorkspaceFromQuery(services as never)
++  installChineseFont()
++  ctx.slots.inject('shell.overlay', () =>
++    ctx.slots.register(
++      { name: 'shell.overlay', id: 'yongjie-cards-overlay' },
++      CardsOverlay as never,
++    ))
++  ctx.slots.inject('conversation.hero.frame', () =>
++    ctx.slots.register(
++      { name: 'conversation.hero.frame', id: 'yongjie-cards' },
++      CardsHome as never,
++    ))
+   ctx.slots.inject('conversation.hero.frame', () => ctx.slots.register({
+     name: 'conversation.hero.frame',
+     id: 'pixel-whale',

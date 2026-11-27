@@ -9,7 +9,6 @@ import type { ServiceCard as ServiceCardType } from '../../types'
 const emit = defineEmits<{
   (event: 'open', card: ServiceCardType): void
   (event: 'action', card: ServiceCardType, action: 'start' | 'stop' | 'restart'): void
-  (event: 'chat', card: ServiceCardType): void
   (event: 'create'): void
 }>()
 
@@ -66,7 +65,6 @@ onBeforeUnmount(() => {
           :compact="store.viewMode === 'compact'"
           @open="emit('open', $event)"
           @action="(c, a) => emit('action', c, a)"
-          @chat="emit('chat', $event)"
         />
       </div>
     </div>

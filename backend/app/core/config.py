@@ -29,7 +29,6 @@ class Settings(BaseSettings):
     seed_demo: bool = True
 
     # security
-    secret_key: str = "dev-insecure-secret-change-me-32bytes"
     admin_token: str = ""
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173"
 
@@ -46,20 +45,13 @@ class Settings(BaseSettings):
     host_interval: float = 3.0
     host_history_points: int = 120
 
-    # optional provider keys (alternative to entering them in the UI)
-    deepseek_api_key: str = ""
-    hunyuan_api_key: str = ""
-    qwen_api_key: str = ""
+    # dsh（DeepSeek Harness）原生工作区
+    dsh_base_url: str = "http://127.0.0.1:3082"
+    dsh_public_url: str = ""  # 浏览器访问地址；为空时回退 dsh_base_url
+    dsh_token: str = ""
+    dsh_token_file: str = "/data/yongjie/dsh-token"
+    dsh_cards_store: str = "~/.dsh/storages/yongjie-cards.json"
 
-    # AI gateway
-    openclaw_base_url: str = ""
-    openclaw_token: str = ""
-    openclaw_mode: str = "openai"  # openai | channel
-    openclaw_health_ttl: int = 30
-    llm_timeout: float = 60.0
-    allow_mock_ai: bool = True
-    chat_max_tool_rounds: int = 4
-    confirm_token_ttl: int = 300
 
     @property
     def cors_origin_list(self) -> list[str]:

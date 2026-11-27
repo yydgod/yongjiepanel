@@ -7,7 +7,6 @@ import pytest
 from app.collectors.base import Snapshot
 from app.collectors.port_collector import parse_port
 from app.collectors.scheduler import CollectScheduler
-from app.services.card_types import get_card_type, tools_for
 
 
 @pytest.mark.parametrize(
@@ -37,12 +36,3 @@ def test_scheduler_marks_saturated_as_warning() -> None:
     decorated = CollectScheduler._decorate(snap)
     assert decorated.status == "warning"
     assert "资源占用偏高" in decorated.detail
-
-
-def test_card_type_tools_are_registered() -> None:
-    from app.tools import tool_registry
-
-    for kind in ("container", "systemd", "port", "custom"):
-        assert get_card_type(kind) is not None
-        registered = {spec.name for spec in tool_registry.for_card_type(kind)}
-        assert set(tools_for(kind)) <= registered

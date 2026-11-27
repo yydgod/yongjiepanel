@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ChevronRight, GripVertical, MessageSquare, Play, RotateCw, Square } from 'lucide-vue-next'
+import { ChevronRight, GripVertical, Play, RotateCw, Square } from 'lucide-vue-next'
 import type { ServiceCard } from '../../types'
 import {
   accentGradient,
@@ -16,7 +16,6 @@ const props = defineProps<{ card: ServiceCard; compact?: boolean }>()
 const emit = defineEmits<{
   (event: 'open', card: ServiceCard): void
   (event: 'action', card: ServiceCard, action: 'start' | 'stop' | 'restart'): void
-  (event: 'chat', card: ServiceCard): void
 }>()
 
 const visual = computed(() => statusVisual(props.card.status?.status))
@@ -172,14 +171,6 @@ function act(action: 'start' | 'stop' | 'restart'): void {
         @click="act('stop')"
       >
         <Square class="h-3.5 w-3.5" />
-      </button>
-      <button
-        type="button"
-        class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-mist-300 transition-colors hover:bg-white/10 hover:text-aurora-violet"
-        title="与 agent 对话"
-        @click="emit('chat', card)"
-      >
-        <MessageSquare class="h-3.5 w-3.5" />
       </button>
     </div>
 

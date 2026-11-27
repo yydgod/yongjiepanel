@@ -17,7 +17,7 @@ class CustomCollector(BaseCollector):
             target: Snapshot(
                 target=target,
                 status="unknown",
-                detail="自定义卡片：由人工维护状态，可让 agent 基于描述给出建议",
+                detail="自定义卡片：由人工维护状态，可在 dsh 工作区中继续处理",
                 collector=self.kind,
             )
             for target in targets

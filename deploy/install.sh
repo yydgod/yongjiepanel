@@ -54,17 +54,9 @@ fi
 
 echo "==> 准备 .env"
 if [ ! -f .env ]; then
-  "$PYTHON_BIN" - <<'PY'
-import pathlib, secrets
-src = pathlib.Path('.env.example').read_text(encoding='utf-8')
-src = src.replace(
-    'SECRET_KEY=change-me-to-a-random-32byte-secret',
-    f'SECRET_KEY={secrets.token_urlsafe(32)}',
-)
-pathlib.Path('.env').write_text(src, encoding='utf-8')
-print('已根据 .env.example 生成 .env，并写入随机 SECRET_KEY')
-PY
+  cp .env.example .env
   chmod 600 .env
+  echo "已根据 .env.example 生成 .env，请填写 ADMIN_TOKEN / DSH_TOKEN"
 else
   echo ".env 已存在，跳过（如需覆盖请先备份并删除）"
 fi
@@ -74,7 +66,7 @@ echo "==> 初始化数据库"
 
 echo ""
 echo "安装完成。下一步："
-echo "  1. 编辑 $APP_DIR/.env（ADMIN_TOKEN / CORS_ORIGINS / 模型 Key / OpenClaw）"
+echo "  1. 编辑 $APP_DIR/.env（ADMIN_TOKEN / CORS_ORIGINS / DSH_BASE_URL / DSH_TOKEN）"
 echo "  2. 启动后端：cd backend && ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000"
 echo "  3. 注册服务：sudo cp deploy/yongjie-panel.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now yongjie-panel"
 echo "  4. 配置 nginx：见 docs/deployment.md 第 3.6 节"

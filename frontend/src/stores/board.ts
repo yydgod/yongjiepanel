@@ -11,7 +11,7 @@ export const useBoardStore = defineStore('board', () => {
   const cards = ref<ServiceCard[]>([])
   const groups = ref<CardGroup[]>([])
   const system = ref<SystemStatus | null>(null)
-  const meta = ref<CardMetaResponse>({ items: [], tools: [] })
+  const meta = ref<CardMetaResponse>({ items: [] })
   const loading = ref(false)
   const error = ref('')
   const lastSynced = ref<string>('')

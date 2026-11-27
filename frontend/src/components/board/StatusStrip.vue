@@ -41,12 +41,6 @@ const tiles = computed(() => [
   },
 ])
 
-const channel = computed(() => {
-  const openclaw = store.system?.openclaw
-  if (openclaw?.healthy) return { label: 'OpenClaw 网关', tone: 'text-state-ok', detail: openclaw.base_url ?? '' }
-  if (openclaw?.configured) return { label: '降级·直连供应商', tone: 'text-state-warn', detail: openclaw.reason }
-  return { label: '直连供应商 / 演示通道', tone: 'text-mist-300', detail: '未配置 OPENCLAW_BASE_URL' }
-})
 </script>
 
 <template>
@@ -71,13 +65,13 @@ const channel = computed(() => {
 
     <div class="glass-panel relative col-span-2 overflow-hidden px-4 py-3.5 lg:col-span-1">
       <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-aurora-violet/60 to-aurora-teal/0" />
-      <div class="label-caps">AI 通道</div>
+      <div class="label-caps">卡片对话</div>
       <div class="mt-1.5 flex items-center gap-2">
         <span class="relative flex h-2 w-2">
           <span class="absolute inline-flex h-full w-full animate-breathe rounded-full bg-aurora-teal/60" />
           <span class="relative inline-flex h-2 w-2 rounded-full bg-aurora-teal" />
         </span>
-        <span class="truncate text-[14.4px] font-medium" :class="channel.tone">{{ channel.label }}</span>
+        <span class="truncate text-[14.4px] font-medium text-aurora-teal">dsh 原生工作区</span>
       </div>
       <div class="mt-1 flex items-center gap-3 text-[12px] text-mist-500">
         <span class="inline-flex items-center gap-1">

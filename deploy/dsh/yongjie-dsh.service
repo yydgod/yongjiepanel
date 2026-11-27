@@ -1,0 +1,25 @@
+[Unit]
+Description=Yongjie Panel - dsh native workspace
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yongjie
+Group=yongjie
+Environment=HOME=/data/yongjie
+Environment=DSH_DIR=/opt/yongjie-dsh
+Environment=DSH_HOME=/data/yongjie/dsh-home
+Environment=DSH_PORT=3082
+Environment=DSH_PUBLIC_URL=https://dsh.example.com
+Environment=DSH_TOKEN_FILE=/data/yongjie/dsh-token
+Environment=DSH_LOG_FILE=/data/yongjie/dsh.log
+ExecStart=/opt/yongjie-dsh/start.sh
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

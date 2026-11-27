@@ -13,7 +13,6 @@ os.environ.update(
         "SYSTEMD_ENABLED": "false",
         "PORT_ENABLED": "false",
         "SECRET_KEY": "test-secret-key-do-not-use-in-prod",
-        "ALLOW_MOCK_AI": "true",
         "ADMIN_TOKEN": "",
         "COLLECT_INTERVAL": "3600",
     }
@@ -41,7 +40,6 @@ def card(client: TestClient) -> dict:
             "card_type": "container",
             "target_ref": "demo-container",
             "group_name": "测试分组",
-            "agent": {"name": "测试助手", "tools": ["get_status", "restart_container"]},
         },
     )
     assert response.status_code == 201, response.text

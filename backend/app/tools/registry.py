@@ -1,4 +1,4 @@
-"""Tool registry — capabilities an agent may invoke.
+"""Tool registry — card quick-action capabilities.
 
 Risk levels drive the confirmation flow: `read` tools execute immediately,
 `destructive` tools require a one-shot confirm token + audit record.

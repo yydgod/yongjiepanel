@@ -9,10 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import DENIED, AppError, not_found
 from app.db.base import utcnow
-from app.models import Agent, Host, ServiceCard
+from app.models import Host, ServiceCard
 from app.schemas.card import CardCreate, CardUpdate
-from app.services import agent_service, audit_service
-from app.services.card_types import default_display_config, get_card_type, tools_for
+from app.services import audit_service
+from app.services.card_types import default_display_config, get_card_type
 from app.services.status_service import store
 from app.tools import tool_registry
 
@@ -58,7 +58,6 @@ def serialize(card: ServiceCard, with_status: bool = True) -> dict[str, Any]:
         "sort_order": card.sort_order,
         "display_config": dict(card.display_config or {}),
         "enabled": card.enabled,
-        "agent": agent_service.serialize(card.agent),
         "status": snapshot or {**UNKNOWN_STATUS, "collector": card.card_type},
         "created_at": card.created_at.isoformat(timespec="seconds") if card.created_at else None,
         "updated_at": card.updated_at.isoformat(timespec="seconds") if card.updated_at else None,
@@ -122,9 +121,6 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
         enabled=payload.enabled,
     )
     db.add(card)
-    db.flush()
-    agent = agent_service.build_agent(db, card, payload.agent)
-    db.add(agent)
     db.commit()
     db.refresh(card)
     audit_service.record(
@@ -138,7 +134,7 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
 
 def update_card(db: Session, card_id: str, payload: CardUpdate) -> dict[str, Any]:
     card = get_card(db, card_id)
-    data = payload.model_dump(exclude_unset=True, exclude={"agent"})
+    data = payload.model_dump(exclude_unset=True)
     if "card_type" in data and data["card_type"] != card.card_type:
         if get_card_type(data["card_type"]) is None:
             raise AppError("validation", f"未知卡片类型：{data['card_type']}", 422)
@@ -149,11 +145,6 @@ def update_card(db: Session, card_id: str, payload: CardUpdate) -> dict[str, Any
     for field, value in data.items():
         if value is not None or field == "subtitle":
             setattr(card, field, value)
-    if payload.agent is not None:
-        if card.agent is None:
-            db.add(agent_service.build_agent(db, card, payload.agent))
-        else:
-            agent_service.apply_agent_update(card.agent, payload.agent, card)
     card.updated_at = utcnow()
     db.commit()
     db.refresh(card)
@@ -189,11 +180,11 @@ async def execute_quick_action(db: Session, card_id: str, action: str) -> dict[s
     if tool_name is None:
         raise AppError(
             DENIED,
-            f"{card.card_type} 类型卡片不支持「{action}」操作，请在详情页使用 agent 处理",
+            f"{card.card_type} 类型卡片不支持「{action}」操作，请在 dsh 工作区中处理",
             400,
         )
     spec = tool_registry.get(tool_name)
-    ctx = agent_service.context_for(card)
+    ctx = _tool_context(card)
     try:
         result = await spec.handler(ctx, {})  # type: ignore[misc]
     except AppError as exc:
@@ -215,12 +206,43 @@ async def execute_quick_action(db: Session, card_id: str, action: str) -> dict[s
     return result
 
 
-def agent_tools_available(card: ServiceCard) -> list[str]:
-    """Union of registry tools valid for this card type (used by the UI)."""
-    valid = {spec.name for spec in tool_registry.for_card_type(card.card_type)}
-    return [name for name in tools_for(card.card_type) if name in valid]
+class _ToolContext:
+    """Minimal view of a card consumed by quick-action tools."""
+
+    def __init__(self, card: ServiceCard) -> None:
+        self.card_id = card.id
+        self.card_type = card.card_type
+        self.target_ref = card.target_ref
+        self.title = card.title
 
 
-def agent_for(db: Session, card_id: str) -> Agent | None:
-    card = get_card(db, card_id)
-    return card.agent
+def _tool_context(card: ServiceCard) -> _ToolContext:
+    return _ToolContext(card)
+
+
+async def read_logs(card: ServiceCard, lines: int) -> str:
+    """Read tail logs for containers and systemd units without an agent."""
+    import asyncio
+    import subprocess
+
+    def _container() -> str:
+        import docker
+
+        client = docker.from_env(timeout=5)
+        return client.containers.get(card.target_ref).logs(tail=lines).decode("utf-8", "ignore")
+
+    def _unit() -> str:
+        proc = subprocess.run(
+            ["journalctl", "-u", card.target_ref, "-n", str(lines), "--no-pager"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        return proc.stdout or proc.stderr
+
+    if card.card_type == "container":
+        return await asyncio.to_thread(_container)
+    if card.card_type == "systemd":
+        return await asyncio.to_thread(_unit)
+    raise AppError("unavailable", f"{card.card_type} 类型卡片暂不支持日志读取", 400)

@@ -6,12 +6,11 @@ import { cardsApi } from '../../api/cards'
 import { errorMessage } from '../../api/client'
 import { useBoardStore } from '../../stores/board'
 import { ACCENT_CHOICES, ICON_CHOICES } from '../../utils/icons'
-import type { Provider, ServiceCard } from '../../types'
+import type { ServiceCard } from '../../types'
 
 const props = defineProps<{
   modelValue: boolean
   card: ServiceCard | null
-  providers: Provider[]
 }>()
 
 const emit = defineEmits<{
@@ -40,14 +39,10 @@ const form = reactive({
   showMetrics: true,
   showPorts: true,
   showUptime: true,
-  provider_id: undefined as string | undefined,
-  model: '',
-  system_prompt: '',
 })
 
 const editing = computed(() => Boolean(props.card))
 const spec = computed(() => store.meta.items.find((item) => item.kind === form.card_type))
-const agentTools = computed(() => spec.value?.tools ?? [])
 
 function hydrate(): void {
   if (props.card) {
@@ -63,9 +58,6 @@ function hydrate(): void {
     form.showMetrics = card.display_config?.showMetrics !== false
     form.showPorts = card.display_config?.showPorts !== false
     form.showUptime = card.display_config?.showUptime !== false
-    form.provider_id = card.agent?.provider_id ?? undefined
-    form.model = card.agent?.model ?? ''
-    form.system_prompt = card.agent?.system_prompt ?? ''
   } else {
     form.title = ''
     form.subtitle = ''
@@ -78,9 +70,6 @@ function hydrate(): void {
     form.showMetrics = true
     form.showPorts = true
     form.showUptime = true
-    form.provider_id = props.providers.find((item) => item.is_default)?.id ?? undefined
-    form.model = ''
-    form.system_prompt = ''
   }
   error.value = ''
 }
@@ -131,16 +120,6 @@ async function submit(): Promise<void> {
       showUptime: form.showUptime,
     },
   }
-  if (!editing.value) {
-    payload.agent = {
-      name: `${form.title.trim()} 助手`,
-      provider_id: form.provider_id ?? null,
-      model: form.model,
-      system_prompt: form.system_prompt,
-      tools: agentTools.value,
-      gateway: 'auto',
-    }
-  }
   try {
     if (editing.value && props.card) {
       await cardsApi.update(props.card.id, payload)
@@ -165,7 +144,7 @@ async function submit(): Promise<void> {
     <div class="space-y-3.5">
       <div class="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13.2px] text-mist-500">
         <Boxes class="h-3.5 w-3.5 text-aurora-teal" />
-        卡片类型决定监控方式、可用工具与详情页展示，新增类型由后端注册表驱动。
+        卡片类型决定监控方式与详情页展示，新增类型由后端注册表驱动。
       </div>
 
       <div>
@@ -263,33 +242,7 @@ async function submit(): Promise<void> {
         </label>
       </div>
 
-      <template v-if="!editing">
-        <div class="border-t border-white/[0.06] pt-3">
-          <div class="label-caps mb-2">专属 Agent（创建后可继续细化）</div>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <el-select v-model="form.provider_id" placeholder="选择模型供应商" clearable class="w-full">
-              <el-option
-                v-for="provider in providers"
-                :key="provider.id"
-                :value="provider.id"
-                :label="`${provider.name}${provider.has_key ? '' : '（未配置 Key）'}`"
-              />
-            </el-select>
-            <input
-              v-model="form.model"
-              type="text"
-              placeholder="模型名，例如 deepseek-chat"
-              class="h-9 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 font-sans text-[13.8px] text-mist-100 outline-none focus:border-aurora-teal/50"
-            />
-          </div>
-          <textarea
-            v-model="form.system_prompt"
-            rows="3"
-            placeholder="留空则自动生成默认运维提示词"
-            class="mt-2 w-full resize-y rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-[13.8px] text-mist-200 outline-none focus:border-aurora-teal/50"
-          />
-        </div>
-      </template>
+
 
       <div v-if="error" class="rounded-lg border border-state-bad/25 bg-state-bad/8 px-3 py-2 text-[13.8px] text-state-bad">
         {{ error }}

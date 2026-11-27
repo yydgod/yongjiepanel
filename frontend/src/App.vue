@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { Check, Moon, Palette, Radio, Sun, Terminal, Wand2 } from 'lucide-vue-next'
+import { Check, Moon, Palette, Sun, Terminal } from 'lucide-vue-next'
 import { useBoardStore } from './stores/board'
 import { useThemeStore, type ThemeMode } from './stores/theme'
 
@@ -14,7 +14,6 @@ const modeOptions: { id: ThemeMode; label: string; icon: typeof Moon }[] = [
   { id: 'light', label: '白天', icon: Sun },
 ]
 
-const openclaw = computed(() => store.system?.openclaw)
 
 let disposePolling: (() => void) | null = null
 
@@ -63,27 +62,12 @@ onUnmounted(() => {
           >
             应用面板
           </RouterLink>
-          <RouterLink to="/providers" class="nav-link">模型与通道</RouterLink>
+          <RouterLink to="/dsh" class="nav-link">dsh 工作区</RouterLink>
           <RouterLink to="/system" class="nav-link">系统与审计</RouterLink>
         </nav>
 
         <div class="ml-auto flex items-center gap-2">
 
-          <div
-            class="hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 xl:flex"
-            :class="openclaw?.healthy
-              ? 'border-state-ok/25 bg-state-ok/8'
-              : 'border-white/[0.07] bg-white/[0.03]'"
-            :title="openclaw?.configured ? (openclaw?.healthy ? 'OpenClaw 网关健康' : `降级中：${openclaw?.reason}`) : '未配置 OpenClaw，当前直连供应商'"
-          >
-            <Radio class="h-3.5 w-3.5" :class="openclaw?.healthy ? 'text-state-ok' : 'text-mist-500'" />
-            <span class="text-[13.2px] text-mist-300">
-              OpenClaw
-              <span class="ml-1 font-mono text-[12px]" :class="openclaw?.healthy ? 'text-state-ok' : 'text-mist-500'">
-                {{ openclaw?.configured ? (openclaw?.healthy ? 'ONLINE' : 'FALLBACK') : 'OFF' }}
-              </span>
-            </span>
-          </div>
 
           <button
             type="button"
@@ -159,10 +143,6 @@ onUnmounted(() => {
             </div>
           </el-popover>
 
-          <RouterLink to="/board?wizard=1" class="btn-primary">
-            <Wand2 class="h-3.5 w-3.5" />
-            <span class="hidden sm:inline">AI 生成卡片</span>
-          </RouterLink>
         </div>
       </div>
     </header>

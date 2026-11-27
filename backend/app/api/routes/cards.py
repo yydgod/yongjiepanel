@@ -1,25 +1,19 @@
-"""Card endpoints: CRUD, ordering, quick actions, metrics, logs, agent config."""
+"""Card endpoints: CRUD, ordering, quick actions, metrics, logs and dsh workspace."""
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.core.errors import AppError
+from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.card import (
-    AgentConfigIn,
-    CardActionRequest,
-    CardCreate,
-    CardOut,
-    CardUpdate,
-    ReorderRequest,
-)
-from app.services import agent_service, card_generator, card_service, provider_service
+from app.schemas.card import CardActionRequest, CardCreate, CardOut, CardUpdate, ReorderRequest
+from app.services import card_service, dsh_service
 from app.services.status_service import store
-from app.tools import tool_registry
 
 router = APIRouter(prefix="/cards", tags=["cards"])
 
@@ -54,10 +48,6 @@ def get_card(card_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
     card = card_service.get_card(db, card_id)
     payload = card_service.serialize(card)
     payload["history"] = store.history(card_id)
-    payload["available_tools"] = [
-        {"name": spec.name, "label": spec.label, "risk": spec.risk, "description": spec.description}
-        for spec in tool_registry.for_card_type(card.card_type)
-    ]
     return payload
 
 
@@ -94,53 +84,31 @@ async def get_logs(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     card = card_service.get_card(db, card_id)
-    spec = tool_registry.get("tail_logs")
-    if card.card_type not in spec.kinds:
-        raise AppError("unavailable", f"{card.card_type} 类型卡片暂不支持日志读取", 400)
-    result = await spec.handler(agent_service.context_for(card), {"lines": lines})  # type: ignore[misc]
-    return {"lines": lines, "content": (result.get("data") or {}).get("logs", "")}
+    return {"lines": lines, "content": await card_service.read_logs(card, lines)}
 
 
-@router.get("/{card_id}/agent")
-def get_agent(card_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
-    card = card_service.get_card(db, card_id)
-    provider = agent_service.resolve_provider_config(db, card.agent)
+@router.get("/{card_id}/dsh")
+def dsh_workspace(card_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """解析卡片对应的 dsh 工作区，返回可直接嵌入的原生 UI 地址。"""
+    card_service.get_card(db, card_id)
+    store = Path(settings.dsh_cards_store).expanduser()
+    if not store.exists():
+        return {"configured": False, "reason": "未找到 dsh 工作区映射，请运行迁移脚本"}
+    try:
+        cards = json.loads(store.read_text()).get("cards") or []
+    except (OSError, json.JSONDecodeError):
+        return {"configured": False, "reason": "dsh 工作区映射文件无法解析"}
+
+    entry = next((item for item in cards if item.get("card_id") == card_id), None)
+    if entry is None:
+        return {"configured": False, "reason": "该卡片尚未迁移为 dsh 工作区"}
+    if not dsh_service.configured():
+        return {"configured": False, "reason": "未配置 dsh 地址或 token"}
+
     return {
-        "agent": agent_service.serialize(card.agent),
-        "provider": (
-            {"id": provider.id, "name": provider.name, "model": provider.default_model, "ready": provider.usable}
-            if provider
-            else None
-        ),
+        "configured": True,
+        "workspace_id": entry["workspace_id"],
+        "title": entry.get("title"),
+        "path": entry.get("path"),
+        "url": dsh_service.url(entry["workspace_id"]),
     }
-
-
-@router.put("/{card_id}/agent")
-def update_agent(
-    card_id: str, payload: AgentConfigIn, db: Session = Depends(get_db)
-) -> dict[str, Any]:
-    card = card_service.get_card(db, card_id)
-    if card.agent is None:
-        card_service.update_card(db, card_id, CardUpdate(agent=payload))
-    else:
-        agent_service.apply_agent_update(card.agent, payload, card)
-        db.commit()
-    updated = card_service.get_card(db, card_id)
-    return {"agent": agent_service.serialize(updated.agent)}
-
-
-@router.post("/{card_id}/customize")
-def customize_card(
-    card_id: str, payload: dict[str, str], db: Session = Depends(get_db)
-) -> dict[str, Any]:
-    card = card_service.get_card(db, card_id)
-    instruction = (payload.get("instruction") or "").strip()
-    if not instruction:
-        raise AppError("validation", "instruction 不能为空", 422)
-    result = card_generator.customize_card(card, instruction)
-    return result.model_dump()
-
-
-@router.get("/{card_id}/providers")
-def providers_for_agent(db: Session = Depends(get_db)) -> dict[str, Any]:
-    return {"items": provider_service.list_providers(db)}

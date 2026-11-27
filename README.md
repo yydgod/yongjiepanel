@@ -1,8 +1,8 @@
 # 永杰面板 · 原子化服务器管理看板
 
 把服务器上的每个容器、systemd 服务、端口服务变成一张**独立卡片**，采用类 App 图标网格布局。
-每张卡片自带**专属 agent**，可读指标、看日志、执行受控运维操作；AI 能力统一由 **OpenClaw 网关**调度，
-并支持 DeepSeek / 腾讯混元 (HY) / Qwen 等多家大模型自由切换。卡片本身也能用一句话生成。
+点击卡片直接进入 **dsh（DeepSeek Harness）原生工作区**；模型、文件、终端、会话全部由 dsh 提供，
+面板只负责服务器总览、卡片管理、采集与跳转。
 
 ![看板首页](docs/screenshots/01-board.png)
 
@@ -12,12 +12,9 @@
 | --- | --- |
 | 服务器总览 | 首页实时呈现 CPU（含每核）、内存、磁盘分区与 IO、网络吞吐、TOP 进程与系统信息 |
 | 原子化卡片 | 容器 / systemd / 端口 / 自定义四类卡片，注册表驱动，新增类型不改核心代码 |
-| 独立详情页 | 点击卡片进入 `/cards/:id`，概览 / 对话 / 配置标签与 URL 同步，可分享与刷新直达 |
-| 专属 agent | 每卡独立配置供应商、模型、提示词、工具白名单、温度与推理通道 |
-| 多模型接入 | DeepSeek、混元、Qwen、任意 OpenAI 兼容端点；Key 加密存储，仅回显掩码 |
-| OpenClaw 网关 | 统一 AI 出口，健康探测 30s 缓存，异常自动降级直连并在 UI 标注通道 |
-| 工具编排 | `get_status` / `tail_logs` 等只读工具即时执行；重启/停止需一次性确认令牌 + 审计 |
-| AI 生成卡片 | 自然语言 → 结构化卡片草稿 → 预览编辑 → 一键加入看板 |
+| dsh 原生工作区 | 点击卡片进入 `/cards/:id/workspace`，按卡片自动选中对应工作区；顶部「dsh 工作区」页签可直接打开完整 dsh |
+| 模型由 dsh 管理 | 面板不再保存模型 Key、不调用大模型；模型、工具、会话均在 dsh 内配置 |
+| 无 Agent 配置 | 每张卡片只保留监控目标、分组、外观与采集开关，不再维护独立 agent |
 | 优雅降级 | 单个服务读取失败只降级为「不可用」卡片并给出原因，接口永不 500 |
 | 明暗双模式 | 白天 / 夜间一键切换，玻璃拟态卡片、极光渐变、状态呼吸灯在两种模式下都保持可读性 |
 | 多套主题色 | 6 套强调色 × 明暗双模式，联动按钮渐变、环境光晕、图表曲线与 Element Plus 主色，本机记忆 |
@@ -29,10 +26,10 @@
   </tr>
   <tr>
     <td><img src="docs/screenshots/02-card-detail.png" alt="卡片详情" /></td>
-    <td><img src="docs/screenshots/03-agent-chat.png" alt="Agent 对话" /></td>
+    <td><img src="docs/screenshots/03-dsh-workspace.png" alt="dsh 原生工作区" /></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/04-providers.png" alt="模型与通道" /></td>
+    <td><img src="docs/screenshots/04-dsh-tab.png" alt="dsh 工作区页签" /></td>
     <td><img src="docs/screenshots/05-system.png" alt="系统与审计" /></td>
   </tr>
   <tr>
@@ -54,14 +51,13 @@
 - **后端**：Python 3.11+ + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic
 - **存储**：SQLite（WAL），改 `DATABASE_URL` 即可切 PostgreSQL
 - **采集**：docker SDK、`systemctl show`（argv 调用）、psutil
-- **AI**：httpx 异步客户端 + 自建 AI Gateway（OpenClaw / OpenAI 兼容 / 离线演示三通道）
 
 ## 快速开始
 
 前置：Python ≥ 3.11、Node ≥ 20、可访问的 Docker socket（可选）。
 
 ```bash
-cp .env.example .env          # 按需填写 SECRET_KEY / OpenClaw / 模型 Key
+cp .env.example .env          # 按需填写 ADMIN_TOKEN / dsh 地址与 token
 make install                  # 创建 .venv 并安装前后端依赖
 make dev                      # 并行启动 API(8000) 与前端(5173)
 ```
@@ -72,13 +68,29 @@ make dev                      # 并行启动 API(8000) 与前端(5173)
 | --- | --- |
 | `/` | 服务器总览（CPU / 内存 / 磁盘 / 网络 / 进程） |
 | `/board` | 应用面板（卡片网格） |
-| `/cards/:id` | 卡片详情，`?tab=chat` / `?tab=config` 可直接定位标签页 |
-| `/providers` | 模型与通道 |
+| `/cards/:id` | 卡片概览（日志、指标） |
+| `/cards/:id/workspace` | dsh 原生工作区（内嵌 iframe，按卡片自动选中工作区） |
+| `/dsh` | dsh 完整界面（顶部第 3 个页签） |
 | `/system` | 系统与审计 |
 
 打开 <http://127.0.0.1:5173> 即是**服务器总览**首页（`/`），应用卡片看板在 `/board`。
 首次启动会自动从本机 Docker 与 systemd 发现服务并写入种子卡片；
 若两者都不可用，也会创建端口卡片与自定义卡片，保证看板可用。
+
+dsh 需单独启动（本仓库的开发环境默认使用 fork 版）：
+
+```bash
+cd /path/to/dsh-src
+node apps/cli/lib/bin.js web --no-open --host 127.0.0.1 --port 3082
+# 把日志中的 token 填入 .env 的 DSH_TOKEN，再重启后端
+```
+
+卡片与 dsh 工作区通过 `~/.dsh/storages/yongjie-cards.json` 映射；已有卡片可运行：
+
+```bash
+.venv/bin/python scripts/migrate_cards_to_workspaces.py
+```
+
 
 也可以分别启动：
 
@@ -101,13 +113,13 @@ docker compose up -d --build
 ## 部署
 
 生产部署请阅读 **[部署指南 docs/deployment.md](docs/deployment.md)**，包含宿主机 systemd + nginx、Docker Compose、
-HTTPS、配置项、备份恢复、升级与排障。`deploy/` 目录提供可直接使用的示例：
+HTTPS、配置项、备份恢复、升级与排障；dsh 的安装、补丁与启动见 **[deploy/dsh/README.md](deploy/dsh/README.md)**。`deploy/` 目录提供可直接使用的示例：
 
 | 文件 | 用途 |
 | --- | --- |
 | [`deploy/install.sh`](deploy/install.sh) | 项目目录内一键安装（venv + 后端依赖 + 前端构建 + 生成 `.env` + 初始化数据库） |
 | [`deploy/yongjie-panel.service`](deploy/yongjie-panel.service) | systemd 单元（单 worker、只读系统目录、可选 docker 组） |
-| [`deploy/nginx.conf`](deploy/nginx.conf) | nginx 站点（HTTPS、SPA 回退、`/api/` 反代、SSE 关闭缓冲） |
+| [`deploy/nginx.conf`](deploy/nginx.conf) | nginx 站点（HTTPS、SPA 回退、`/api/` 反代、关闭代理缓冲） |
 | [`deploy/backup.sh`](deploy/backup.sh) | SQLite 在线备份（默认保留 14 天，可加 cron） |
 
 ```bash
@@ -125,21 +137,20 @@ sudo systemctl daemon-reload && sudo systemctl enable --now yongjie-panel
 │   │   ├── main.py                 # 应用装配、CORS、可选 Bearer 中间件
 │   │   ├── core/                   # 配置 / 结构化日志 / Fernet / 错误模型
 │   │   ├── db/                     # engine、Session、建表与种子入口
-│   │   ├── models/                 # 8 张表：hosts/cards/agents/providers/chat/audit...
+│   │   ├── models/                 # hosts / service_cards / audit_logs
 │   │   ├── schemas/                # API 契约（Pydantic v2）
-│   │   ├── api/routes/             # cards / card-types / providers / chat / generate / host / system
-│   │   ├── services/               # 领域逻辑（卡片、agent、供应商、对话、生成、审计、状态）+ host_monitor（主机指标）
+│   │   ├── api/routes/             # cards / card-types / dsh / host / system
+│   │   ├── services/               # 卡片、审计、状态、采集 + host_monitor（主机指标）
 │   │   ├── collectors/             # 采集契约 + Docker/systemd/端口/自定义 + 5s 调度
-│   │   ├── ai/                     # AI Gateway、OpenClaw 客户端、OpenAI 兼容、离线 mock
-│   │   └── tools/                  # 工具注册表（只读 / 破坏性）与白名单执行器
+│   │   └── tools/                  # 卡片快捷操作（容器 / systemd 启停）
 │   ├── alembic/                    # 初始迁移（自动生成）
-│   └── tests/                      # 24 个服务层 + API 集成测试
+│   └── tests/                      # 16 个服务层 + API 集成测试
 ├── frontend/
 │   └── src/
-│       ├── views/                  # OverviewView / BoardView / CardDetailView / ProvidersView / SystemView
-│       ├── components/             # overview / board / card / agent / providers / ai
+│       ├── views/                  # Overview / Board / CardDetail / CardWorkspace / Dsh / System
+│       ├── components/             # overview / board / card
 │       ├── stores/                 # Pinia：看板状态（5s 轮询）与外观偏好（明暗 + 主题色）
-│       ├── api/                    # fetch 封装、SSE 解析、类型化接口
+│       ├── api/                    # fetch 封装与类型化接口
 │       └── utils/                  # 状态色、图标映射、格式化
 ├── deploy/                         # 部署示例：install / systemd / nginx / backup
 ├── docs/
@@ -211,56 +222,32 @@ ECharts 的坐标轴（11px）、图例（12px）与 tooltip（13px）一并放�
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `DATABASE_URL` | `sqlite:///./data/board.db` | 数据库连接串 |
-| `SECRET_KEY` | dev 占位值 | 派生 Fernet 密钥，**生产必须替换** |
 | `ADMIN_TOKEN` | 空 | 设置后所有非 GET 请求需 `Authorization: Bearer <token>` |
 | `COLLECT_INTERVAL` | 5 | 服务卡片采集周期（秒） |
 | `HOST_INTERVAL` | 3 | 主机指标采样周期（秒） |
 | `HOST_HISTORY_POINTS` | 120 | 主机趋势环形缓冲点数（约 6 分钟） |
 | `DOCKER_ENABLED` / `SYSTEMD_ENABLED` / `PORT_ENABLED` | true | 按需关闭采集器 |
-| `OPENCLAW_BASE_URL` | 空 | 网关地址，如 `http://127.0.0.1:18789` |
-| `OPENCLAW_TOKEN` | 空 | 网关鉴权 token |
-| `OPENCLAW_MODE` | openai | `openai`（兼容端点）或 `channel`（会话端点） |
-| `ALLOW_MOCK_AI` | true | 无可用 Key 时启用离线演示通道 |
-| `CHAT_MAX_TOOL_ROUNDS` | 4 | 单轮对话最多工具迭代次数 |
-| `CONFIRM_TOKEN_TTL` | 300 | 破坏性操作确认令牌有效期（秒） |
-| `DEEPSEEK_API_KEY` / `HUNYUAN_API_KEY` / `QWEN_API_KEY` | 空 | 也可在界面中配置（界面优先） |
+| `DSH_BASE_URL` | http://127.0.0.1:3082 | dsh 原生工作区地址 |
+| `DSH_TOKEN` | 空 | dsh web 启动 token（每次重启会变化） |
+| `DSH_CARDS_STORE` | ~/.dsh/storages/yongjie-cards.json | 卡片 → 工作区映射文件 |
 
 ## 主要接口
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/cards` | 卡片列表（配置 + 最新快照 + 分组统计） |
-| POST | `/api/cards` | 创建卡片（可内联 agent 配置） |
+| POST | `/api/cards` | 创建卡片 |
 | PATCH/DELETE | `/api/cards/{id}` | 更新 / 删除卡片 |
 | POST | `/api/cards/reorder` | 拖拽排序持久化 |
 | POST | `/api/cards/{id}/actions` | 快捷启停 / 重启（写审计） |
 | GET | `/api/cards/{id}/metrics` | 指标环形缓冲（约 15 分钟） |
 | GET | `/api/cards/{id}/logs` | 容器 / journal 尾部日志 |
-| GET/PUT | `/api/cards/{id}/agent` | 读取 / 更新专属 agent |
-| POST | `/api/cards/{id}/chat/stream` | SSE 流式对话（token / tool_call / pending / done） |
-| POST | `/api/chat/confirm` | 执行待确认的破坏性操作 |
-| GET/POST/PUT/DELETE | `/api/providers` | 供应商 CRUD（Key 掩码返回） |
-| POST | `/api/providers/{id}/test` | 供应商连通性测试 |
-| GET | `/api/providers/openclaw` | 网关健康与降级原因 |
-| POST | `/api/generate/card` | 自然语言生成卡片草稿 |
-| POST | `/api/cards/{id}/customize` | 自然语言定制卡片外观 / 提示词 |
+| GET | `/api/cards/{id}/dsh` | 卡片对应的 dsh 工作区地址（含 workspaceId 与启动 token） |
+| GET | `/api/dsh` | dsh 完整界面入口（顶部页签使用） |
 | GET | `/api/host/overview` | 主机快照 + 近 6 分钟趋势（CPU/内存/网络/磁盘/进程） |
 | POST | `/api/host/sample` | 立即采样一次（首页刷新按钮） |
 | GET/POST | `/api/system/status`、`/api/system/collect` | 调度状态、手动采集 |
 | GET | `/api/audit` | 审计日志 |
-
-## OpenClaw 接入
-
-系统把 OpenClaw 当作**统一 AI 能力网关**：
-
-1. 配置 `OPENCLAW_BASE_URL`（与可选 `OPENCLAW_TOKEN`）。
-2. `OPENCLAW_MODE=openai`：网关需暴露 `GET /health` 或 `/v1/models` 用于健康探测，
-   并提供 `POST /v1/chat/completions`；看板会把 `X-OpenClaw-Session`、`X-OpenClaw-Agent` 元数据透传，
-   便于网关侧 skills 按会话编排。
-3. `OPENCLAW_MODE=channel`：网关暴露 `POST /channel/message`（`session` / `agent` / `text` / `tools`），
-   由网关自行托管会话状态。
-4. 探测失败（30s 缓存）时自动降级直连供应商，响应 `channel` 字段标记 `fallback` / `direct` / `mock`，
-   前端顶部胶囊与系统页会实时显示当前通道。
 
 ## 扩展指南
 
@@ -270,35 +257,28 @@ ECharts 的坐标轴（11px）、图例（12px）与 tooltip（13px）一并放�
 2. `backend/app/collectors/` 实现 `BaseCollector`（`available()` + `collect()`），在 `registry.py` 注册。
 3. 前端无需改动：卡片表单与详情由 `/api/card-types` 动态渲染。
 
-**新增 agent 工具**
+**模型配置**
 
-1. 在 `backend/app/tools/` 定义 `ToolSpec`（名字、描述、JSON Schema、`risk`、适用卡片类型、执行器）。
-2. 只读工具自动执行；`risk="destructive"` 会自动走「确认令牌 + 审计」流程。
-3. 工具会自动出现在 `GET /api/card-types`，前端配置面板直接可勾选。
-
-**新增模型供应商**
-
-界面「模型与通道 → 新增供应商」即可；厂商默认参数集中在 `backend/app/ai/providers.py` 的 `PRESETS`，
-若新厂商协议有差异，只需在 `OpenAICompatClient` 外层加薄适配，无需改动业务层。
+卡片对话走 dsh 原生工作区，模型在 dsh「设置 → 模型」中配置（支持 DeepSeek / 自定义 OpenAI 兼容端点），
+面板不再保存模型 Key；`DSH_BASE_URL`、`DSH_TOKEN`、`DSH_CARDS_STORE` 用于面板定位 dsh 与卡片映射。
 
 ## 安全基线
 
-- API Key 使用 Fernet（密钥派生自 `SECRET_KEY`）加密入库，接口只返回 `sk-****abcd`，无明文回显接口。
-- 破坏性操作 = 工具白名单 + 一次性确认令牌 + 审计记录（操作者、目标、参数、结果、时间）。
-- 命令执行全部使用 argv 白名单（`systemctl restart <unit>`、`journalctl -u <unit>`、docker SDK），不做 shell 拼接。
+- 面板不保存模型 API Key：模型、会话、文件与终端都由 dsh 管理。
+- 卡片快捷操作（重启 / 停止 / 启动）通过后端工具执行，并写入审计日志。
+- `DSH_TOKEN` 等同 dsh 本机 owner 权限，请只在内网使用，并通过反向代理限制访问。
 - 默认仅监听 `127.0.0.1`；可选 `ADMIN_TOKEN` Bearer 保护；CORS 白名单化。
-- Docker socket 只读挂载，后端容器不启用特权模式。
 
 ## 测试与验收
 
 ```bash
-make test     # 24 passed 个测试：主机指标、卡片 CRUD、供应商掩码、对话 mock、生成草稿、确认令牌、采集器单测
+make test     # 16 passed 个测试：主机指标、卡片 CRUD、快捷操作、系统状态、采集器
 make lint     # ruff
 make build    # vue-tsc 类型检查 + vite 构建
 ```
 
-已在本机完成端到端验证：首页主机指标（CPU/内存/磁盘/网络/进程）实时刷新、看板渲染 4 类卡片、卡片详情页（`/cards/:id`）指标曲线与日志、SSE 流式对话、
-供应商页、系统审计页、AI 生成卡片三步向导，以及白天/夜间 × 6 套主题色切换与刷新后偏好保持（截图见 `docs/screenshots/`）。
+已在本机完成端到端验证：首页主机指标（CPU/内存/磁盘/网络/进程）实时刷新、看板渲染 4 类卡片、卡片详情页指标曲线与日志、
+点击卡片进入对应 dsh 工作区、顶部 dsh 页签、系统审计页，以及白天/夜间 × 6 套主题色切换与刷新后偏好保持（截图见 `docs/screenshots/`）。
 
 ## 常见问题
 
@@ -306,9 +286,9 @@ make build    # vue-tsc 类型检查 + vite 构建
 | --- | --- |
 | 卡片显示「不可用 · 无法连接 Docker」 | 确认 `/var/run/docker.sock` 已挂载、当前用户有权限；或 `DOCKER_ENABLED=false` |
 | systemd 卡片「当前环境未运行 systemd」 | 容器内通常没有 PID 1 的 systemd，请用宿主机运行后端 |
-| 对话返回「演示通道」 | 未配置任何 API Key，可在「模型与通道」中填写，或设置 `DEEPSEEK_API_KEY` 等环境变量 |
 | 端口采集缺少进程信息 | 需要 root 或 CAP_NET_ADMIN 才能读取其他用户进程的连接 |
 | 修改卡片后状态未刷新 | 采集周期默认 5s；可在系统页点「立即采集」 |
 | 首页主机指标为 0 或不可用 | 容器内 psutil 只能看到 cgroup/宿主可见指标；确认容器未被限制读取 /proc |
-| 更换 SECRET_KEY 后供应商显示未配置 Key | 密钥由 SECRET_KEY 派生，轮换后需在界面重新填写 API Key |
+| 卡片对话空白 / 无法进入 | 检查 dsh 是否运行、`DSH_BASE_URL` / `DSH_TOKEN` 是否与 dsh 启动日志一致 |
+| dsh 重启后卡片打不开 | dsh token 每次启动变化，更新 `.env` 的 `DSH_TOKEN` 并重启后端 |
 | 系统 Python 版本过低 | `make install PYTHON=python3.12`，或先安装 ≥3.11 的解释器 |

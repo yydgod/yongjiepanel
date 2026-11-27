@@ -14,31 +14,10 @@ export interface CardStatus {
   error?: { code: string; message: string } | null
 }
 
-export interface Agent {
-  id: string
-  card_id: string
-  name: string
-  provider_id: string | null
-  model: string
-  system_prompt: string
-  tools: string[]
-  temperature: number
-  max_tokens: number
-  gateway: 'auto' | 'openclaw' | 'direct'
-  enabled: boolean
-}
-
 export interface MetricPoint {
   ts: string | null
   cpu: number | null
   mem: number | null
-}
-
-export interface ToolMeta {
-  name: string
-  label: string
-  risk: 'read' | 'destructive'
-  description: string
 }
 
 export interface ServiceCard {
@@ -54,12 +33,10 @@ export interface ServiceCard {
   sort_order: number
   display_config: Record<string, unknown>
   enabled: boolean
-  agent: Agent | null
   status: CardStatus
   created_at: string
   updated_at: string
   history?: MetricPoint[]
-  available_tools?: ToolMeta[]
 }
 
 export interface CardGroup {
@@ -76,44 +53,8 @@ export interface CardTypeSpec {
   target_label: string
   target_placeholder: string
   target_pattern: string
-  tools: string[]
   metrics: string[]
   display_defaults: Record<string, unknown>
-}
-
-export interface Provider {
-  id: string
-  name: string
-  kind: string
-  base_url: string
-  default_model: string
-  models: string[]
-  extra: Record<string, unknown>
-  temperature: number
-  timeout: number
-  is_default: boolean
-  enabled: boolean
-  has_key: boolean
-  api_key_masked: string
-  created_at: string
-}
-
-export interface ProviderPreset {
-  kind: string
-  label: string
-  base_url: string
-  models: string[]
-  docs: string
-  extra?: Record<string, unknown>
-}
-
-export interface OpenClawStatus {
-  configured: boolean
-  base_url: string | null
-  mode: string
-  healthy: boolean
-  reason: string
-  checked_at: number | null
 }
 
 export interface CollectDiagnostic {
@@ -137,8 +78,6 @@ export interface SystemStatus {
     collectors: CollectDiagnostic[]
   }
   collectors: CollectDiagnostic[]
-  openclaw: OpenClawStatus
-  ai: { providers_total: number; providers_ready: number; mock_enabled: boolean }
   cards_total: number
   interval: number
 }
@@ -153,56 +92,6 @@ export interface AuditEntry {
   result: Record<string, unknown> | null
   error: string | null
   created_at: string | null
-}
-
-export interface CardDraft {
-  title: string
-  subtitle: string | null
-  card_type: string
-  target_ref: string
-  group_name: string
-  icon: string
-  accent: string
-  display_config: Record<string, unknown>
-  system_prompt: string
-  tools: string[]
-  model_hint: string | null
-  rationale: string
-  channel: string
-}
-
-export interface ToolCallEvent {
-  id: string
-  name: string
-  label?: string
-  risk?: 'read' | 'destructive'
-  args?: Record<string, unknown>
-  ok?: boolean
-  summary?: string
-  data?: unknown
-}
-
-export interface PendingAction {
-  token: string
-  tool_name: string
-  label?: string
-  params: Record<string, unknown>
-  expires_at: string
-}
-
-export interface ChatMessageView {
-  id: string
-  role: 'user' | 'assistant' | 'tool' | 'system'
-  content: string
-  channel?: string | null
-  toolCalls?: ToolCallEvent[]
-  pending?: PendingAction[]
-  streaming?: boolean
-}
-
-export interface ChatStreamEvent {
-  type: string
-  [key: string]: unknown
 }
 
 export interface HostHistoryPoint {
@@ -288,4 +177,19 @@ export interface HostOverview {
   processes: HostProcess[]
   health: { status: 'ok' | 'warning' | 'critical' | 'unknown'; reasons: string[] }
   history: HostHistoryPoint[]
+}
+
+export interface DshWorkspaceInfo {
+  configured: boolean
+  workspace_id?: string
+  title?: string
+  path?: string
+  url?: string
+  reason?: string
+}
+
+export interface DshEntry {
+  configured: boolean
+  url?: string
+  reason?: string
 }

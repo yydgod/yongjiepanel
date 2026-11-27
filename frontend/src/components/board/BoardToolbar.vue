@@ -5,7 +5,6 @@ import { useBoardStore } from '../../stores/board'
 
 const emit = defineEmits<{
   (event: 'create'): void
-  (event: 'generate'): void
 }>()
 
 const store = useBoardStore()
@@ -71,11 +70,6 @@ const statusChips = [
       <button type="button" class="btn-ghost h-10" title="立即刷新" @click="store.refresh()">
         <RefreshCw class="h-3.5 w-3.5" :class="store.loading ? 'animate-spin' : ''" />
         <span class="hidden sm:inline">刷新</span>
-      </button>
-
-      <button type="button" class="btn-ghost h-10" @click="emit('generate')">
-        <Wand2 class="h-3.5 w-3.5 text-aurora-violet" />
-        <span class="hidden sm:inline">AI 生成</span>
       </button>
 
       <button type="button" class="btn-primary h-10" @click="emit('create')">

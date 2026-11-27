@@ -74,7 +74,7 @@ bash deploy/install.sh /opt/yongjie-panel
 ```
 
 `deploy/install.sh` 会完成：校验 Python/Node 版本 → 创建 `.venv` → 安装后端依赖 →
-`npm ci && npm run build` → 生成 `.env`（含随机 `SECRET_KEY`）→ 初始化数据库。
+`npm ci && npm run build` → 复制 `.env.example` → 初始化数据库。
 它**不会**做任何 `sudo` 操作，也不会覆盖已存在的 `.env`。
 
 也可以手动执行：
@@ -93,9 +93,6 @@ cd .. && cp .env.example .env
 ### 3.3 配置 `.env`
 
 ```bash
-# 生成随机 SECRET_KEY（用于加密模型 API Key）
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-
 vi /opt/yongjie-panel/.env
 ```
 
@@ -104,20 +101,11 @@ vi /opt/yongjie-panel/.env
 ```ini
 APP_NAME=永杰面板
 DATABASE_URL=sqlite:///./data/board.db
-SECRET_KEY=<上一步生成的随机串>
 ADMIN_TOKEN=<自定义强口令，启用写接口鉴权>
 CORS_ORIGINS=https://panel.example.com
 SYSTEMD_ENABLED=true
 DOCKER_ENABLED=true
 HOST_INTERVAL=3
-# OpenClaw（可选）
-OPENCLAW_BASE_URL=http://127.0.0.1:18789
-OPENCLAW_TOKEN=oc_xxx
-OPENCLAW_MODE=openai
-# 模型 Key（也可在界面中配置）
-DEEPSEEK_API_KEY=
-HUNYUAN_API_KEY=
-QWEN_API_KEY=
 ```
 
 ### 3.4 初始化数据库
@@ -154,7 +142,7 @@ sudo vi /etc/nginx/conf.d/yongjie-panel.conf   # 修改 server_name 与证书路
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-`nginx.conf` 已包含：SPA history 回退、`/api/` 反代、**SSE 关闭缓冲**（Agent 流式对话必需）、静态资源长缓存。
+`nginx.conf` 已包含：SPA history 回退、`/api/` 反代、**关闭代理缓冲**（长响应）、静态资源长缓存。
 
 ### 3.7 验证
 
@@ -183,6 +171,34 @@ sudo systemctl restart yongjie-panel
 
 ---
 
+### 3.7 集成 dsh（卡片对话 / 文件 / 终端）
+
+面板本身不包含模型与 Agent，卡片对话由 dsh 原生工作区提供。完整说明见
+[`deploy/dsh/README.md`](../deploy/dsh/README.md)。
+
+```bash
+# 1) 安装固定版本 dsh + 永杰补丁（Node >= 24.9）
+sudo mkdir -p /opt/yongjie-dsh /data/yongjie /data/workspaces
+sudo chown -R yongjie:yongjie /opt/yongjie-dsh /data/yongjie /data/workspaces
+sudo -u yongjie DSH_DIR=/opt/yongjie-dsh bash deploy/dsh/install.sh
+
+# 2) 启动
+sudo cp deploy/dsh/yongjie-dsh.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now yongjie-dsh
+
+# 3) 面板 .env
+DSH_BASE_URL=http://127.0.0.1:3082
+DSH_PUBLIC_URL=https://dsh.example.com
+DSH_TOKEN_FILE=/data/yongjie/dsh-token
+DSH_CARDS_STORE=/data/yongjie/dsh-home/storages/yongjie-cards.json
+```
+
+- `start.sh` 会把 dsh 启动 token 写入 `DSH_TOKEN_FILE`，面板动态读取，dsh 重启后无需重启面板。
+- `DSH_PUBLIC_URL` 必须是浏览器可访问的地址（推荐独立子域名），否则远程用户打开卡片会指向自己的 `127.0.0.1`。
+- nginx 配置见 [`deploy/nginx-dsh.conf`](../deploy/nginx-dsh.conf)：独立子域名、WebSocket、关闭缓冲、`frame-ancestors` 限制。
+- 首次打开 dsh 后，在 **Settings → Models → Custom model API** 配置模型（如混元 `hy4-flash`）。
+- 已有卡片执行 `scripts/migrate_cards_to_workspaces.py` 转换为工作区。
+
 ## 4. 方式 B：Docker Compose
 
 ### 4.1 准备配置
@@ -191,7 +207,7 @@ sudo systemctl restart yongjie-panel
 git clone <your-repo-url> yongjie-panel
 cd yongjie-panel
 cp .env.example .env
-# 修改 SECRET_KEY / ADMIN_TOKEN / CORS_ORIGINS / 模型 Key
+# 修改 ADMIN_TOKEN / CORS_ORIGINS / DSH_BASE_URL / DSH_TOKEN
 ```
 
 ### 4.2 启动
@@ -210,7 +226,7 @@ Compose 已做的关键配置：
 - `backend` 挂载 `/var/run/docker.sock:ro`（只读，用于采集容器状态）
 - 数据卷 `board-data` 持久化 SQLite
 - `SYSTEMD_ENABLED=false`（容器内没有 systemd；需要该能力请用方式 A）
-- 前端 nginx 关闭 `/api/` 缓冲以支持 SSE
+- 前端 nginx 关闭 `/api/` 缓冲，避免长响应被缓存
 
 ### 4.3 查看日志与升级
 
@@ -262,7 +278,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
-        proxy_buffering off;       # SSE 关键
+        proxy_buffering off;       # 长响应
         proxy_read_timeout 300s;
     }
 
@@ -291,7 +307,6 @@ sudo certbot --nginx -d panel.example.com
 
 | 变量 | 默认 | 生产建议 |
 | --- | --- | --- |
-| `SECRET_KEY` | 开发占位值 | **必须替换为 32 字节随机串**；轮换后需重新录入模型 Key |
 | `ADMIN_TOKEN` | 空 | 公网部署必须设置；留空表示不鉴权 |
 | `CORS_ORIGINS` | localhost:5173 | 改为实际域名，如 `https://panel.example.com` |
 | `DATABASE_URL` | `sqlite:///./data/board.db` | 保持默认（相对 `backend/`）；或用绝对路径 |
@@ -300,10 +315,9 @@ sudo certbot --nginx -d panel.example.com
 | `HOST_INTERVAL` | 3 | 首页主机指标采样周期（秒） |
 | `HOST_HISTORY_POINTS` | 120 | 首页趋势点数（约 6 分钟） |
 | `DOCKER_ENABLED` / `SYSTEMD_ENABLED` / `PORT_ENABLED` | true | 用不到的可关闭，减少无谓读取 |
-| `ALLOW_MOCK_AI` | true | 生产建议 false：无 Key 时直接报错而不是演示回答 |
-| `CHAT_MAX_TOOL_ROUNDS` | 4 | Agent 工具迭代上限 |
-| `CONFIRM_TOKEN_TTL` | 300 | 破坏性操作确认令牌有效期（秒） |
-| `OPENCLAW_*` | 空 | 不配置则直连供应商 |
+| `DSH_BASE_URL` | http://127.0.0.1:3082 | dsh 原生工作区地址 |
+| `DSH_TOKEN` | 空 | dsh web 启动 token，每次重启变化 |
+| `DSH_CARDS_STORE` | ~/.dsh/storages/yongjie-cards.json | 卡片 → 工作区映射 |
 
 完整的变量说明见 [`.env.example`](../.env.example)。
 
@@ -334,7 +348,7 @@ sudo chown yongjie:yongjie /opt/yongjie-panel/backend/data/board.db
 sudo systemctl start yongjie-panel
 ```
 
-同时备份 `.env`（含加密密钥，注意权限 600）；**丢失 `SECRET_KEY` 将无法解密已保存的模型 API Key**，需要在界面重新填写。
+同时备份 `.env`（含 ADMIN_TOKEN / DSH_TOKEN，注意权限 600）。
 
 ---
 
@@ -361,7 +375,7 @@ docker compose logs -n 200 backend
 | 卡片显示「无法连接 Docker」 | 运行用户不在 docker 组，或 socket 路径不同；可临时 `DOCKER_ENABLED=false` |
 | systemd 卡片全部不可用 | 后端运行在容器内（无 PID 1 systemd），改用宿主机部署 |
 | `database is locked` | 多个后端进程/worker 同时写 SQLite；确保单 worker，停止重复实例 |
-| 模型配置后仍走演示通道 | `ALLOW_MOCK_AI=true` 且 Key 未生效；检查供应商「测试连通性」与 `.env` |
+| 卡片工作区打不开 | 检查 dsh 是否运行、`DSH_TOKEN` 是否与 dsh 启动日志一致（重启会变化） |
 | 页面刷新 404 | nginx 缺少 `try_files $uri $uri/ /index.html` |
 | 修改 `.env` 不生效 | 需 `systemctl restart yongjie-panel` / `docker compose up -d` |
 | 主题偏好丢失 | 浏览器 localStorage 被清理；主题仅存本地，不跨设备 |
@@ -374,7 +388,7 @@ docker compose logs -n 200 backend
 - [ ] 首页显示 CPU / 内存 / 磁盘 / 网络曲线，且 3 秒刷新
 - [ ] 应用面板卡片显示真实状态（容器 / systemd / 端口按需）
 - [ ] 卡片详情页 `/cards/:id` 可直接访问、刷新、切换 `?tab=chat`
-- [ ] Agent 对话可流式输出（无 Key 时显示演示通道提示）
+- [ ] 点击卡片可进入对应 dsh 工作区
 - [ ] 重启类操作弹出确认，执行后审计页有记录
 - [ ] 明暗模式与主题色切换正常并被记住
 - [ ] nginx 已启用 HTTPS，HTTP 自动跳转

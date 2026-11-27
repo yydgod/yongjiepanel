@@ -15,7 +15,6 @@ const loadingAudit = ref(false)
 const collecting = ref(false)
 
 const scheduler = computed(() => board.system?.scheduler)
-const openclaw = computed(() => board.system?.openclaw)
 
 const tiles = computed(() => [
   {
@@ -31,16 +30,16 @@ const tiles = computed(() => [
     ok: (scheduler.value?.duration_ms ?? 0) < 8000,
   },
   {
-    label: '已配置 Key',
-    value: `${board.system?.ai.providers_ready ?? 0}/${board.system?.ai.providers_total ?? 0}`,
-    hint: board.system?.ai.mock_enabled ? '演示通道已启用' : '无 Key 时不会降级到演示',
-    ok: (board.system?.ai.providers_ready ?? 0) > 0,
+    label: '服务卡片',
+    value: board.stats.total,
+    hint: `${board.groups.length} 个分组`,
+    ok: board.stats.total > 0,
   },
   {
-    label: 'AI 网关',
-    value: openclaw.value?.healthy ? 'OpenClaw' : openclaw.value?.configured ? 'FALLBACK' : 'DIRECT',
-    hint: openclaw.value?.reason || openclaw.value?.base_url || '未配置网关地址',
-    ok: Boolean(openclaw.value?.healthy),
+    label: '卡片对话',
+    value: 'dsh',
+    hint: '原生工作区 · 模型由 dsh 管理',
+    ok: true,
   },
 ])
 
@@ -118,7 +117,6 @@ onMounted(async () => {
         </div>
 
         <div class="rounded-xl border border-white/[0.05] bg-ink-950/40 p-3">
-          <div class="label-caps mb-1.5 flex items-center gap-1"><Clock3 class="h-3 w-3" />调度信息</div>
           <div class="grid grid-cols-2 gap-2 text-[12.6px] text-mist-300">
             <div>last_run: {{ scheduler?.last_run ? relativeTime(scheduler.last_run) : '—' }}</div>
             <div>duration: {{ scheduler?.duration_ms ?? '—' }} ms</div>
@@ -155,20 +153,19 @@ onMounted(async () => {
       <section class="glass-panel p-4">
         <div class="mb-3 flex items-center gap-2">
           <ShieldCheck class="h-4 w-4 text-aurora-violet" />
-          <h2 class="text-[16.2px] font-semibold text-mist-100">通道与安全基线</h2>
+          <h2 class="text-[16.2px] font-semibold text-mist-100">运行与安全基线</h2>
         </div>
         <div class="space-y-2 text-[13.2px] leading-relaxed text-mist-300">
           <div class="flex items-start gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
             <Activity class="mt-0.5 h-3.5 w-3.5 shrink-0 text-aurora-teal" />
             <span>
-              AI 通道：
-              <span class="text-mist-100">{{ openclaw?.healthy ? 'openclaw' : openclaw?.configured ? 'openclaw→direct（降级）' : 'direct / mock' }}</span>
-              ，降级原因：{{ openclaw?.reason || '无' }}
+              卡片对话：<span class="text-mist-100">由 dsh 原生工作区提供</span>，模型、文件与终端均在 dsh 内管理；
+              面板不再保存模型 Key。
             </span>
           </div>
           <div class="flex items-start gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
             <ShieldCheck class="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-ok" />
-            <span>API Key 使用 Fernet 加密存储，接口仅返回掩码；破坏性工具需一次性确认令牌并写入审计。</span>
+            <span>面板只保存卡片与采集配置；dsh 使用独立启动 token，建议通过反向代理限制访问。</span>
           </div>
           <div class="flex items-start gap-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2">
             <TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-state-warn" />
@@ -181,7 +178,6 @@ onMounted(async () => {
           <div>DOCKER_ENABLED=true</div>
           <div>SYSTEMD_ENABLED=true</div>
           <div>PORT_ENABLED=true</div>
-          <div>ALLOW_MOCK_AI=true</div>
         </div>
       </section>
     </div>

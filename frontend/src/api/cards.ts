@@ -1,14 +1,13 @@
 import { api } from './client'
 import type {
-  Agent,
+  DshEntry,
   AuditEntry,
   CardGroup,
   CardTypeSpec,
-  Provider,
+  DshWorkspaceInfo,
+  MetricPoint,
   ServiceCard,
   SystemStatus,
-  ToolMeta,
-  MetricPoint,
 } from '../types'
 
 export interface CardListResponse {
@@ -18,7 +17,6 @@ export interface CardListResponse {
 
 export interface CardMetaResponse {
   items: CardTypeSpec[]
-  tools: ToolMeta[]
 }
 
 export const cardsApi = {
@@ -29,7 +27,7 @@ export const cardsApi = {
     return api.get<CardListResponse>(`/cards${query ? `?${query}` : ''}`)
   },
   detail: (id: string) =>
-    api.get<ServiceCard & { history: MetricPoint[]; available_tools: ToolMeta[] }>(`/cards/${id}`),
+    api.get<ServiceCard & { history: MetricPoint[] }>(`/cards/${id}`),
   create: (payload: Record<string, unknown>) => api.post<ServiceCard>('/cards', payload),
   update: (id: string, payload: Record<string, unknown>) =>
     api.patch<ServiceCard>(`/cards/${id}`, payload),
@@ -42,17 +40,10 @@ export const cardsApi = {
     api.get<{ points: MetricPoint[]; snapshot: unknown }>(`/cards/${id}/metrics`),
   logs: (id: string, lines = 120) =>
     api.get<{ lines: number; content: string }>(`/cards/${id}/logs?lines=${lines}`),
-  agent: (id: string) =>
-    api.get<{ agent: Agent | null; provider: { id: string; name: string; model: string; ready: boolean } | null }>(
-      `/cards/${id}/agent`,
-    ),
-  updateAgent: (id: string, payload: Record<string, unknown>) =>
-    api.put<{ agent: Agent }>(`/cards/${id}/agent`, payload),
-  customize: (id: string, instruction: string) =>
-    api.post<Record<string, unknown>>(`/cards/${id}/customize`, { instruction }),
   meta: () => api.get<CardMetaResponse>('/card-types'),
   system: () => api.get<SystemStatus>('/system/status'),
   audit: (limit = 50) => api.get<{ items: AuditEntry[] }>(`/audit?limit=${limit}`),
   collect: () => api.post<{ cards: number; duration_ms: number }>('/system/collect'),
-  providers: () => api.get<Provider[]>('/providers'),
+  dsh: (id: string) => api.get<DshWorkspaceInfo>(`/cards/${id}/dsh`),
+  dshEntry: () => api.get<DshEntry>('/dsh'),
 }

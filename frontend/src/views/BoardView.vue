@@ -1,37 +1,25 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Layers, Radar } from 'lucide-vue-next'
 import { cardsApi } from '../api/cards'
 import { errorMessage } from '../api/client'
 import { useBoardStore } from '../stores/board'
-import type { Provider, ServiceCard } from '../types'
+import type { ServiceCard } from '../types'
 import BoardToolbar from '../components/board/BoardToolbar.vue'
 import CardGrid from '../components/board/CardGrid.vue'
 import StatusStrip from '../components/board/StatusStrip.vue'
 import CardFormDrawer from '../components/card/CardFormDrawer.vue'
-import CardGeneratorWizard from '../components/ai/CardGeneratorWizard.vue'
 
 const board = useBoardStore()
-const route = useRoute()
 const router = useRouter()
 
-const providers = ref<Provider[]>([])
 const formOpen = ref(false)
 const formCard = ref<ServiceCard | null>(null)
-const wizardOpen = ref(false)
-
-async function loadProviders(): Promise<void> {
-  try {
-    providers.value = await cardsApi.providers()
-  } catch (err) {
-    console.error('供应商加载失败', err)
-  }
-}
 
 function openCard(card: ServiceCard): void {
-  void router.push(`/cards/${card.id}`)
+  void router.push(`/cards/${card.id}/workspace`)
 }
 
 function openCreate(): void {
@@ -59,23 +47,7 @@ async function handleAction(card: ServiceCard, action: 'start' | 'stop' | 'resta
   }
 }
 
-function openChat(card: ServiceCard): void {
-  void router.push({ path: `/cards/${card.id}`, query: { tab: 'chat' } })
-}
-
-watch(
-  () => route.query.wizard,
-  (value) => {
-    if (value) {
-      wizardOpen.value = true
-      void router.replace({ path: '/board', query: {} })
-    }
-  },
-  { immediate: true },
-)
-
 onMounted(() => {
-  void loadProviders()
   void board.refreshSystem()
 })
 </script>
@@ -91,8 +63,8 @@ onMounted(() => {
           </span>
         </div>
         <p class="mt-1 max-w-2xl text-[14.4px] leading-relaxed text-mist-300">
-          每个容器、systemd 服务或端口都是一张独立卡片，卡片自带专属 agent。
-          拖拽卡片左侧手柄可编排顺序，悬停卡片即可启停或直接对话。
+          每个容器、systemd 服务或端口都是一张独立卡片；点击卡片直接进入 dsh 原生工作区。
+          拖拽卡片左侧手柄可编排顺序，悬停卡片即可启停服务。
         </p>
       </div>
       <div class="flex items-center gap-3 text-[13.2px] text-mist-500">
@@ -110,27 +82,19 @@ onMounted(() => {
     <StatusStrip />
 
     <section class="glass-panel p-4">
-      <BoardToolbar @create="openCreate" @generate="wizardOpen = true" />
+      <BoardToolbar @create="openCreate" />
     </section>
 
     <CardGrid
       @open="openCard"
       @action="handleAction"
-      @chat="openChat"
       @create="openCreate"
     />
 
     <CardFormDrawer
       v-model="formOpen"
       :card="formCard"
-      :providers="providers"
       @saved="board.refresh()"
-    />
-
-    <CardGeneratorWizard
-      v-model="wizardOpen"
-      :providers="providers"
-      @created="board.refresh()"
     />
   </div>
 </template>

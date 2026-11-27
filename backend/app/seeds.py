@@ -1,4 +1,4 @@
-"""Seed data: local host, provider presets, and cards detected on this machine."""
+"""Seed data: local host and cards detected on this machine."""
 
 from __future__ import annotations
 
@@ -6,14 +6,10 @@ import subprocess
 
 from sqlalchemy.orm import Session
 
-from app.ai.providers import PRESETS
-from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.security import encrypt_secret
-from app.models import Host, Provider
-from app.schemas.card import AgentConfigIn, CardCreate
+from app.models import Host
+from app.schemas.card import CardCreate
 from app.services import card_service
-from app.services.card_types import tools_for
 
 log = get_logger("seeds")
 
@@ -63,42 +59,7 @@ def _systemd_units(limit: int = 1) -> list[str]:
     return units[:limit]
 
 
-def seed_providers(db: Session) -> list[Provider]:
-    keys = {
-        "deepseek": settings.deepseek_api_key,
-        "hunyuan": settings.hunyuan_api_key,
-        "qwen": settings.qwen_api_key,
-    }
-    created: list[Provider] = []
-    for index, (kind, key) in enumerate(keys.items()):
-        preset = PRESETS[kind]
-        provider = Provider(
-            name=preset["label"],
-            kind=kind,
-            base_url=preset["base_url"],
-            default_model=preset["models"][0],
-            models=list(preset["models"]),
-            api_key_encrypted=encrypt_secret(key) if key else None,
-            extra=preset.get("extra", {}),
-            is_default=(index == 0),
-            enabled=True,
-        )
-        db.add(provider)
-        created.append(provider)
-    db.flush()
-    return created
-
-
-def _agent_prompt(title: str, kind: str, target: str) -> str:
-    return (
-        f"你是「{title}」的专属运维 agent（类型 {kind}，目标 {target}）。\n"
-        "职责：先读取状态与日志确认事实，再给出诊断与处置建议；"
-        "遇到重启、停止等破坏性操作必须说明影响并等待用户确认；回答简洁、使用中文。"
-    )
-
-
-def _seed_cards(db: Session, providers: list[Provider]) -> None:
-    provider_id = providers[0].id if providers else None
+def _seed_cards(db: Session) -> None:
     order = 0
 
     for name in _docker_names():
@@ -114,12 +75,6 @@ def _seed_cards(db: Session, providers: list[Provider]) -> None:
                 icon="box",
                 accent="teal",
                 sort_order=order,
-                agent=AgentConfigIn(
-                    name=f"{name} 助手",
-                    provider_id=provider_id,
-                    tools=tools_for("container"),
-                    system_prompt=_agent_prompt(name, "container", name),
-                ),
             ),
         )
 
@@ -135,12 +90,6 @@ def _seed_cards(db: Session, providers: list[Provider]) -> None:
             icon="radio",
             accent="blue",
             sort_order=order,
-            agent=AgentConfigIn(
-                name="API 守护者",
-                provider_id=provider_id,
-                tools=tools_for("port"),
-                system_prompt=_agent_prompt("永杰面板 API", "port", "8000"),
-            ),
         ),
     )
 
@@ -157,12 +106,6 @@ def _seed_cards(db: Session, providers: list[Provider]) -> None:
                 icon="server",
                 accent="violet",
                 sort_order=order,
-                agent=AgentConfigIn(
-                    name="unit 助手",
-                    provider_id=provider_id,
-                    tools=tools_for("systemd"),
-                    system_prompt=_agent_prompt(unit, "systemd", unit),
-                ),
             ),
         )
 
@@ -179,12 +122,6 @@ def _seed_cards(db: Session, providers: list[Provider]) -> None:
             accent="amber",
             sort_order=order,
             enabled=True,
-            agent=AgentConfigIn(
-                name="外部依赖助手",
-                provider_id=provider_id,
-                tools=tools_for("custom"),
-                system_prompt=_agent_prompt("对象存储网关", "custom", "外部 API"),
-            ),
         ),
     )
 
@@ -193,7 +130,6 @@ def seed_database(db: Session) -> None:
     host = Host(name="本机", kind="local", status="online")
     db.add(host)
     db.flush()
-    providers = seed_providers(db)
     db.commit()
-    _seed_cards(db, providers)
-    log.info("种子数据写入完成: host=%s providers=%s", host.id, len(providers))
+    _seed_cards(db)
+    log.info("种子数据写入完成: host=%s", host.id)
