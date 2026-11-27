@@ -20,6 +20,8 @@ if [ -n "$DSH_PUBLIC_URL" ]; then
   args+=(--public-url "$DSH_PUBLIC_URL" --trusted-host "$authority")
 fi
 
+: > "$LOG_FILE"
+rm -f "$TOKEN_FILE"
 echo "[$(date -Is)] starting dsh on 127.0.0.1:$DSH_PORT" >> "$LOG_FILE"
 node apps/cli/lib/bin.js "${args[@]}" >> "$LOG_FILE" 2>&1 &
 pid=$!
