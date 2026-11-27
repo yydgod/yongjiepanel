@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { Download, RefreshCw } from 'lucide-vue-next'
 import { cardsApi } from '../../api/cards'
 import { errorMessage } from '../../api/client'
@@ -13,6 +13,7 @@ const loading = ref(false)
 const error = ref('')
 const lines = ref(120)
 const follow = ref(true)
+let timer: number | null = null
 
 async function load(): Promise<void> {
   loading.value = true
@@ -38,14 +39,31 @@ function download(): void {
   URL.revokeObjectURL(url)
 }
 
-// 立即加载：兼容标签页首次渲染与卡片切换两种场景
+function stopPolling(): void {
+  if (timer !== null) window.clearInterval(timer)
+  timer = null
+}
+
+/** 「跟随最新」开启且面板可见时，每 5 秒静默刷新一次日志。 */
+function syncPolling(): void {
+  stopPolling()
+  if (props.active === false || !follow.value) return
+  timer = window.setInterval(() => {
+    if (!document.hidden) void load()
+  }, 5000)
+}
+
+// 立即加载：兼容标签页首次渲染、抽屉打开与卡片切换三种场景
 watch(
   () => [props.cardId, props.active] as const,
   () => {
     if (props.active !== false) void load()
+    syncPolling()
   },
   { immediate: true },
 )
+watch(follow, syncPolling)
+onBeforeUnmount(stopPolling)
 
 defineExpose({ load })
 </script>
@@ -79,7 +97,7 @@ defineExpose({ load })
       v-if="cardType === 'port' || cardType === 'custom'"
       class="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-[14.4px] text-mist-500"
     >
-      该类型卡片没有容器 / unit 日志。可让 agent 通过 get_status 读取实时指标。
+      端口 / 自定义类型的卡片没有容器 / unit 日志，实时指标请查看卡片概览。
     </div>
 
     <div v-else-if="error" class="rounded-xl border border-state-bad/25 bg-state-bad/8 px-3 py-2 text-[13.8px] text-state-bad">

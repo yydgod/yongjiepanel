@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { RefreshCw, ExternalLink } from 'lucide-vue-next'
 import { cardsApi } from '../api/cards'
 import { errorMessage } from '../api/client'
 import type { DshEntry } from '../types'
 
+const route = useRoute()
 const entry = ref<DshEntry | null>(null)
 const loading = ref(true)
 const error = ref('')
 const frameKey = ref(0)
+const workspaceId = computed(() => String(route.query.workspace ?? ''))
+const frameSrc = computed(() => {
+  const url = entry.value?.url
+  if (!url) return ''
+  if (!workspaceId.value) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}workspace=${encodeURIComponent(workspaceId.value)}`
+})
 
 async function load(): Promise<void> {
   loading.value = true
@@ -62,8 +72,8 @@ onMounted(load)
     </div>
     <div v-else class="overflow-hidden rounded-2xl border border-white/[0.08] bg-white">
       <iframe
-        :key="frameKey"
-        :src="entry.url"
+        :key="`${frameKey}-${workspaceId}`"
+        :src="frameSrc"
         title="dsh 工作区"
         class="h-[calc(100vh-168px)] min-h-[560px] w-full border-0"
         allow="clipboard-read; clipboard-write"

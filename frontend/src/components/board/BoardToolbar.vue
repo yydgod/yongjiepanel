@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { LayoutGrid, List, Plus, RefreshCw, Search, SlidersHorizontal, Wand2 } from 'lucide-vue-next'
+import { LayoutGrid, List, RefreshCw, Search, SlidersHorizontal, Wand2 } from 'lucide-vue-next'
 import { useBoardStore } from '../../stores/board'
 
 const emit = defineEmits<{
@@ -72,9 +72,14 @@ const statusChips = [
         <span class="hidden sm:inline">刷新</span>
       </button>
 
-      <button type="button" class="btn-primary h-10" @click="emit('create')">
-        <Plus class="h-4 w-4" />
-        新建卡片
+      <button
+        type="button"
+        class="btn-primary h-10"
+        title="在 dsh 中让 AI 创建工作区、启动服务并生成卡片"
+        @click="emit('create')"
+      >
+        <Wand2 class="h-4 w-4" />
+        AI 创建卡片
       </button>
     </div>
 

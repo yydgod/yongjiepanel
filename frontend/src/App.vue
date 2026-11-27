@@ -63,6 +63,8 @@ onUnmounted(() => {
             应用面板
           </RouterLink>
           <RouterLink to="/dsh" class="nav-link">dsh 工作区</RouterLink>
+          <RouterLink to="/files" class="nav-link">文件管理</RouterLink>
+          <RouterLink to="/terminal" class="nav-link">终端</RouterLink>
           <RouterLink to="/system" class="nav-link">系统与审计</RouterLink>
         </nav>
 

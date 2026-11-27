@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import Sortable from 'sortablejs'
-import { LayoutGrid, Plus } from 'lucide-vue-next'
+import { LayoutGrid, Wand2 } from 'lucide-vue-next'
 import ServiceCard from './ServiceCard.vue'
 import { useBoardStore } from '../../stores/board'
 import type { ServiceCard as ServiceCardType } from '../../types'
@@ -81,8 +81,8 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-[14.4px] text-mist-500">调整筛选条件，或让 AI 根据一句描述为你生成一张卡片。</p>
       </div>
       <button type="button" class="btn-primary" @click="emit('create')">
-        <Plus class="h-4 w-4" />
-        新建第一张卡片
+        <Wand2 class="h-4 w-4" />
+        用 AI 创建卡片
       </button>
     </div>
 

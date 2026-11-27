@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.errors import DENIED, AppError, not_found
+from app.core.logging import get_logger
 from app.db.base import utcnow
 from app.models import Host, ServiceCard
 from app.schemas.card import CardCreate, CardUpdate
-from app.services import audit_service
+from app.services import audit_service, dsh_service, file_service
 from app.services.card_types import default_display_config, get_card_type
 from app.services.status_service import store
 from app.tools import tool_registry
+
+log = get_logger("cards")
 
 UNKNOWN_STATUS: dict[str, Any] = {
     "status": "unknown",
@@ -43,6 +47,29 @@ def get_card(db: Session, card_id: str) -> ServiceCard:
     return card
 
 
+def _normalize_workspace_path(raw: str | None) -> tuple[str | None, Path | None]:
+    if raw is None or not raw.strip():
+        return None, None
+    target = file_service.resolve(raw.strip())
+    if not target.exists():
+        raise AppError("validation", f"工作区目录不存在: {raw.strip()}", 400)
+    if not target.is_dir():
+        raise AppError("validation", "工作区目录必须是目录", 400)
+    return file_service.relative(target), target
+
+
+def _workspace_payload(card: ServiceCard) -> dict[str, Any]:
+    return {
+        "id": card.id,
+        "title": card.title,
+        "icon": card.icon,
+        "accent": card.accent,
+        "group_name": card.group_name,
+        "card_type": card.card_type,
+        "target_ref": card.target_ref,
+    }
+
+
 def serialize(card: ServiceCard, with_status: bool = True) -> dict[str, Any]:
     snapshot = store.snapshot(card.id) if with_status else None
     return {
@@ -53,6 +80,7 @@ def serialize(card: ServiceCard, with_status: bool = True) -> dict[str, Any]:
         "card_type": card.card_type,
         "target_ref": card.target_ref,
         "group_name": card.group_name,
+        "workspace_path": card.workspace_path,
         "icon": card.icon,
         "accent": card.accent,
         "sort_order": card.sort_order,
@@ -107,6 +135,7 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
         raise AppError("validation", f"未知卡片类型：{payload.card_type}", 422)
     host = db.get(Host, payload.host_id) if payload.host_id else ensure_local_host(db)
     max_order = db.query(func.max(ServiceCard.sort_order)).scalar() or 0
+    workspace_path, workspace_target = _normalize_workspace_path(payload.workspace_path)
     card = ServiceCard(
         host_id=host.id if host else ensure_local_host(db).id,
         title=payload.title,
@@ -114,6 +143,7 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
         card_type=payload.card_type,
         target_ref=payload.target_ref,
         group_name=payload.group_name or "默认分组",
+        workspace_path=workspace_path,
         icon=payload.icon or spec["icon"],
         accent=payload.accent or spec["accent"],
         sort_order=payload.sort_order if payload.sort_order is not None else max_order + 10,
@@ -121,6 +151,9 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
         enabled=payload.enabled,
     )
     db.add(card)
+    db.flush()
+    if workspace_path is not None:
+        dsh_service.bind_card(_workspace_payload(card), workspace_path)
     db.commit()
     db.refresh(card)
     audit_service.record(
@@ -135,6 +168,11 @@ def create_card(db: Session, payload: CardCreate) -> dict[str, Any]:
 def update_card(db: Session, card_id: str, payload: CardUpdate) -> dict[str, Any]:
     card = get_card(db, card_id)
     data = payload.model_dump(exclude_unset=True)
+    workspace_changed = "workspace_path" in data
+    workspace_raw = data.pop("workspace_path", None)
+    workspace_path, workspace_target = (
+        _normalize_workspace_path(workspace_raw) if workspace_changed else (None, None)
+    )
     if "card_type" in data and data["card_type"] != card.card_type:
         if get_card_type(data["card_type"]) is None:
             raise AppError("validation", f"未知卡片类型：{data['card_type']}", 422)
@@ -145,6 +183,12 @@ def update_card(db: Session, card_id: str, payload: CardUpdate) -> dict[str, Any
     for field, value in data.items():
         if value is not None or field == "subtitle":
             setattr(card, field, value)
+    if workspace_changed and workspace_path != card.workspace_path:
+        card.workspace_path = workspace_path
+        if workspace_path is not None:
+            dsh_service.bind_card(_workspace_payload(card), workspace_path)
+        else:
+            dsh_service.unbind_card(card.id)
     card.updated_at = utcnow()
     db.commit()
     db.refresh(card)
@@ -153,6 +197,10 @@ def update_card(db: Session, card_id: str, payload: CardUpdate) -> dict[str, Any
 
 def delete_card(db: Session, card_id: str) -> None:
     card = get_card(db, card_id)
+    try:
+        dsh_service.unbind_card(card.id)
+    except AppError as exc:
+        log.warning("移除 dsh 卡片映射失败 %s: %s", card_id, exc.message)
     db.delete(card)
     db.commit()
     audit_service.record(db, action="card.delete", target_id=card_id)

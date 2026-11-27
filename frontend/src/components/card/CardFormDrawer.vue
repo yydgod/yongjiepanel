@@ -33,6 +33,7 @@ const form = reactive({
   card_type: 'container',
   target_ref: '',
   group_name: '默认分组',
+  workspace_path: '',
   icon: 'box',
   accent: 'teal',
   enabled: true,
@@ -52,6 +53,7 @@ function hydrate(): void {
     form.card_type = card.card_type
     form.target_ref = card.target_ref
     form.group_name = card.group_name
+    form.workspace_path = card.workspace_path ?? ''
     form.icon = card.icon
     form.accent = card.accent
     form.enabled = card.enabled
@@ -64,6 +66,7 @@ function hydrate(): void {
     form.card_type = 'container'
     form.target_ref = ''
     form.group_name = '默认分组'
+    form.workspace_path = ''
     form.icon = 'box'
     form.accent = 'teal'
     form.enabled = true
@@ -111,6 +114,7 @@ async function submit(): Promise<void> {
     card_type: form.card_type,
     target_ref: form.target_ref.trim(),
     group_name: form.group_name.trim() || '默认分组',
+    workspace_path: form.workspace_path.trim() || null,
     icon: form.icon,
     accent: form.accent,
     enabled: form.enabled,
@@ -192,6 +196,19 @@ async function submit(): Promise<void> {
           :placeholder="spec?.target_placeholder ?? ''"
           class="h-9 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 font-sans text-[14.4px] text-mist-100 outline-none focus:border-aurora-teal/50"
         />
+      </div>
+
+      <div>
+        <label class="label-caps mb-1 block">dsh 工作区目录（可选）</label>
+        <input
+          v-model="form.workspace_path"
+          type="text"
+          placeholder="服务器目录，例如 /data/workspaces/my-app"
+          class="h-9 w-full rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 font-mono text-[13.2px] text-mist-100 outline-none focus:border-aurora-teal/50"
+        />
+        <p class="mt-1 text-[11.4px] leading-relaxed text-mist-500">
+          填写后保存时自动注册并绑定 dsh 工作区，留空则解除绑定；可先在「文件管理」页确认目录路径。
+        </p>
       </div>
 
       <div>

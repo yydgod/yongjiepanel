@@ -45,12 +45,31 @@ class Settings(BaseSettings):
     host_interval: float = 3.0
     host_history_points: int = 120
 
+    # file manager（文件管理页签）
+    file_root: str = "/"
+    file_max_bytes: int = 2_000_000
+    file_preview_bytes: int = 1_000_000
+    file_search_timeout: float = 4.0
+    file_search_max_scan: int = 200_000
+
     # dsh（DeepSeek Harness）原生工作区
     dsh_base_url: str = "http://127.0.0.1:3082"
     dsh_public_url: str = ""  # 浏览器访问地址；为空时回退 dsh_base_url
     dsh_token: str = ""
     dsh_token_file: str = "/data/yongjie/dsh-token"
     dsh_cards_store: str = "~/.dsh/storages/yongjie-cards.json"
+    # 通过运行中 dsh 的 Remote API 注册工作区；关闭后回退为直接写注册表（dsh 未运行时）
+    dsh_remote_write: bool = True
+    # 「AI 创建卡片」时在哪个根目录下创建 <目录名> 工作区
+    workspace_root: str = "/data/workspaces"
+
+    # terminal（终端页签）
+    terminal_enabled: bool = True
+    terminal_timeout: float = 30.0
+    terminal_max_output_bytes: int = 262_144
+    terminal_max_sessions: int = 8
+    terminal_history_limit: int = 500
+    terminal_history_file: str = str(DATA_DIR / "terminal_history.json")
 
 
     @property

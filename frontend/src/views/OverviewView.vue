@@ -21,6 +21,7 @@ import CorePanel from '../components/overview/CorePanel.vue'
 import DiskPanel from '../components/overview/DiskPanel.vue'
 import NetworkPanel from '../components/overview/NetworkPanel.vue'
 import ProcessPanel from '../components/overview/ProcessPanel.vue'
+import LogFeed from '../components/overview/LogFeed.vue'
 
 const board = useBoardStore()
 const theme = useThemeStore()
@@ -235,5 +236,7 @@ onBeforeUnmount(stopPolling)
         正在读取主机指标…
       </div>
     </div>
+
+    <LogFeed />
   </div>
 </template>

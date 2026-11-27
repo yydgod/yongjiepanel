@@ -14,6 +14,7 @@ class CardBase(BaseModel):
     card_type: str = Field(default="container", max_length=32)
     target_ref: str = Field(min_length=1, max_length=200)
     group_name: str = Field(default="默认分组", max_length=64)
+    workspace_path: str | None = Field(default=None, max_length=1024)
     icon: str = Field(default="box", max_length=48)
     accent: str = Field(default="teal", max_length=16)
     display_config: dict[str, Any] = Field(default_factory=dict)
@@ -31,6 +32,7 @@ class CardUpdate(BaseModel):
     card_type: str | None = None
     target_ref: str | None = Field(default=None, min_length=1, max_length=200)
     group_name: str | None = Field(default=None, max_length=64)
+    workspace_path: str | None = Field(default=None, max_length=1024)
     icon: str | None = None
     accent: str | None = None
     display_config: dict[str, Any] | None = None
@@ -43,6 +45,7 @@ class CardOut(CardBase):
 
     id: str
     host_id: str
+    workspace_path: str | None = None
     sort_order: int
     status: dict[str, Any] | None = None
     created_at: datetime

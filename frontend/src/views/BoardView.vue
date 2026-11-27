@@ -10,21 +10,22 @@ import type { ServiceCard } from '../types'
 import BoardToolbar from '../components/board/BoardToolbar.vue'
 import CardGrid from '../components/board/CardGrid.vue'
 import StatusStrip from '../components/board/StatusStrip.vue'
-import CardFormDrawer from '../components/card/CardFormDrawer.vue'
+import AiCardDialog from '../components/board/AiCardDialog.vue'
 
 const board = useBoardStore()
 const router = useRouter()
-
-const formOpen = ref(false)
-const formCard = ref<ServiceCard | null>(null)
+const aiDialogOpen = ref(false)
 
 function openCard(card: ServiceCard): void {
-  void router.push(`/cards/${card.id}/workspace`)
+  void router.push(`/cards/${card.id}`)
 }
 
-function openCreate(): void {
-  formCard.value = null
-  formOpen.value = true
+function openAiCreate(): void {
+  aiDialogOpen.value = true
+}
+
+function openWorkspaceInDsh(workspaceId: string): void {
+  void router.push({ name: 'dsh', query: { workspace: workspaceId } })
 }
 
 async function handleAction(card: ServiceCard, action: 'start' | 'stop' | 'restart'): Promise<void> {
@@ -63,7 +64,8 @@ onMounted(() => {
           </span>
         </div>
         <p class="mt-1 max-w-2xl text-[14.4px] leading-relaxed text-mist-300">
-          每个容器、systemd 服务或端口都是一张独立卡片；点击卡片直接进入 dsh 原生工作区。
+          每个容器、systemd 服务或端口都是一张独立卡片；点击卡片先进入运行监控页查看 CPU、内存与日志，再切到第二页
+          dsh 工作区与 AI 对话。新建卡片由 dsh 中的 AI 通过 MCP 完成：描述服务或容器需求，AI 会创建工作区、启动服务并生成卡片。
           拖拽卡片左侧手柄可编排顺序，悬停卡片即可启停服务。
         </p>
       </div>
@@ -82,19 +84,15 @@ onMounted(() => {
     <StatusStrip />
 
     <section class="glass-panel p-4">
-      <BoardToolbar @create="openCreate" />
+      <BoardToolbar @create="openAiCreate" />
     </section>
 
     <CardGrid
       @open="openCard"
       @action="handleAction"
-      @create="openCreate"
+      @create="openAiCreate"
     />
 
-    <CardFormDrawer
-      v-model="formOpen"
-      :card="formCard"
-      @saved="board.refresh()"
-    />
+    <AiCardDialog v-model="aiDialogOpen" @created="openWorkspaceInDsh" />
   </div>
 </template>

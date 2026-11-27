@@ -97,6 +97,12 @@ defineExpose({ refreshLogs: () => logPanel.value?.load() })
             <dd class="truncate text-mist-100">{{ card.group_name }}</dd>
           </div>
           <div class="flex justify-between gap-3">
+            <dt class="text-mist-500">工作区目录</dt>
+            <dd class="max-w-[62%] truncate font-mono text-mist-100" :title="card.workspace_path || ''">
+              {{ card.workspace_path || '—' }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-3">
             <dt class="text-mist-500">采集于</dt>
             <dd class="text-mist-100">{{ relativeTime(card.status?.collected_at) }}</dd>
           </div>

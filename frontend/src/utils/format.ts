@@ -22,6 +22,14 @@ export function formatPercent(value: number | null | undefined): string {
   return `${value.toFixed(value < 10 ? 1 : 0)}%`
 }
 
+export function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(2)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
 export interface StatusVisual {
   label: string
   dot: string

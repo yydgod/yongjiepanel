@@ -20,6 +20,7 @@ class ServiceCard(Base, TimestampMixin):
     card_type: Mapped[str] = mapped_column(String(32), index=True)
     target_ref: Mapped[str] = mapped_column(String(160))
     group_name: Mapped[str] = mapped_column(String(64), default="默认分组")
+    workspace_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     icon: Mapped[str] = mapped_column(String(48), default="box")
     accent: Mapped[str] = mapped_column(String(16), default="teal")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

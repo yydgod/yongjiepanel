@@ -48,7 +48,8 @@ export default {
       },
       fontFamily: {
         sans: ['"Noto Sans SC"', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // 等宽字体后补充中文字体，保证终端 / 日志中的中文输出不出现方框
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', '"Noto Sans SC"', 'monospace'],
       },
       boxShadow: {
         glass: '0 24px 60px -32px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.06)',

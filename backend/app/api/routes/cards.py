@@ -90,18 +90,27 @@ async def get_logs(
 @router.get("/{card_id}/dsh")
 def dsh_workspace(card_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
     """解析卡片对应的 dsh 工作区，返回可直接嵌入的原生 UI 地址。"""
-    card_service.get_card(db, card_id)
+    card = card_service.get_card(db, card_id)
     store = Path(settings.dsh_cards_store).expanduser()
-    if not store.exists():
-        return {"configured": False, "reason": "未找到 dsh 工作区映射，请运行迁移脚本"}
-    try:
-        cards = json.loads(store.read_text()).get("cards") or []
-    except (OSError, json.JSONDecodeError):
-        return {"configured": False, "reason": "dsh 工作区映射文件无法解析"}
+    store_exists = store.exists()
+    entry = None
+    if store_exists:
+        try:
+            cards = json.loads(store.read_text()).get("cards") or []
+        except (OSError, json.JSONDecodeError):
+            cards = []
+        entry = next((item for item in cards if item.get("card_id") == card_id), None)
 
-    entry = next((item for item in cards if item.get("card_id") == card_id), None)
     if entry is None:
-        return {"configured": False, "reason": "该卡片尚未迁移为 dsh 工作区"}
+        # 卡片已配置工作区目录但映射缺失时，按目录在注册表中查找
+        entry = dsh_service.lookup_workspace(card.workspace_path)
+    if entry is None:
+        reason = (
+            "该卡片尚未配置 dsh 工作区目录"
+            if store_exists
+            else "未找到 dsh 工作区映射，请先完成 dsh 部署"
+        )
+        return {"configured": False, "reason": reason}
     if not dsh_service.configured():
         return {"configured": False, "reason": "未配置 dsh 地址或 token"}
 

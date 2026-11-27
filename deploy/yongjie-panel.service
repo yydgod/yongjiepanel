@@ -32,6 +32,8 @@ ProtectHome=read-only
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
+# 文件管理页签只可写入这里列出的目录；如需管理其他路径，
+# 把 FILE_ROOT 指向可写目录，并同步加入 ReadWritePaths
 ReadWritePaths=/opt/yongjie-panel/backend/data
 
 StandardOutput=journal

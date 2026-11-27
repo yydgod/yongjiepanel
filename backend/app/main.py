@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import __version__
-from app.api.routes import card_types, cards, dsh, host, system
+from app.api.routes import card_types, cards, dsh, files, host, logs, system, terminal
 from app.collectors.scheduler import scheduler
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
@@ -70,5 +70,5 @@ async def admin_guard(request: Request, call_next):  # type: ignore[no-untyped-d
     return await call_next(request)
 
 
-for module in (cards, card_types, dsh, host, system):
+for module in (cards, card_types, dsh, files, host, logs, system, terminal):
     app.include_router(module.router, prefix=settings.api_prefix)

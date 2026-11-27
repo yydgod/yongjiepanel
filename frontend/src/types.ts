@@ -28,6 +28,7 @@ export interface ServiceCard {
   card_type: string
   target_ref: string
   group_name: string
+  workspace_path: string | null
   icon: string
   accent: string
   sort_order: number
@@ -192,4 +193,84 @@ export interface DshEntry {
   configured: boolean
   url?: string
   reason?: string
+}
+
+export interface FileEntry {
+  name: string
+  path: string
+  is_dir: boolean
+  is_symlink: boolean
+  size: number | null
+  mode: string
+  modified_at: string | null
+  hidden: boolean
+  leaf?: boolean
+}
+
+export interface FileListing {
+  root: string
+  absolute_root: string
+  path: string
+  parent: string | null
+  items: FileEntry[]
+  truncated: boolean
+}
+
+export interface FileContent {
+  path: string
+  name: string
+  size: number
+  content: string
+  binary: boolean
+  truncated: boolean
+  editable: boolean
+  mime: string
+  modified_at: string | null
+}
+
+export interface FileSearchResult {
+  query: string
+  items: FileEntry[]
+  truncated: boolean
+  scanned: number
+}
+
+export interface DshWorkspaceCreate {
+  workspace_id: string
+  path: string
+  title: string | null
+  created: boolean
+  configured: boolean
+  url?: string
+  reason?: string
+}
+
+export interface DshWorkspaceBootstrap extends DshWorkspaceCreate {
+  directory: string
+  absolute_path: string
+}
+
+export interface TerminalSession {
+  id: string
+  title: string
+  cwd: string
+  created_at: string | null
+  last_active: string | null
+}
+
+export interface TerminalExecResult {
+  session_id: string
+  cwd: string
+  output: string
+  exit_code: number
+  duration_ms: number
+  truncated: boolean
+}
+
+export interface TerminalHistoryItem {
+  command: string
+  session_id: string
+  cwd: string
+  exit_code: number
+  created_at: string | null
 }

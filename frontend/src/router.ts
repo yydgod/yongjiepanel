@@ -34,6 +34,18 @@ const router = createRouter({
       meta: { title: 'dsh 工作区' },
     },
     {
+      path: '/files',
+      name: 'files',
+      component: () => import('./views/FilesView.vue'),
+      meta: { title: '服务器文件' },
+    },
+    {
+      path: '/terminal',
+      name: 'terminal',
+      component: () => import('./views/TerminalView.vue'),
+      meta: { title: '终端' },
+    },
+    {
       path: '/system',
       name: 'system',
       component: () => import('./views/SystemView.vue'),
